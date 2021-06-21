@@ -1,0 +1,20 @@
+(executable
+ (name            gen)
+ (modules         Gen)
+ (libraries       xmlm))
+
+(rule
+ (targets  GL.ml GL_stubs.c)
+ (deps     (:gen gen.exe))
+ (action   (run %{gen})))
+
+(library
+ (name            GL)
+ (public_name     gl-ocaml)
+ (modules         GL)
+ (wrapped         false)
+ (libraries       bigarray)
+ (foreign_stubs
+  (language       c)
+  (names          GL_stubs))
+ (c_library_flags (-lGL)))
