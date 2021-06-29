@@ -1,0 +1,4 @@
+(executable
+ (name            generator)
+ (promote         (until-clean) (into ..))
+ (libraries       xmlm))

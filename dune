@@ -1,11 +1,6 @@
-(executable
- (name            gen)
- (modules         Gen)
- (libraries       xmlm))
-
 (rule
  (targets  GL.ml GL_stubs.c)
- (deps     (:gen gen.exe))
+ (deps     (:gen src/generator.exe) gl.xml)
  (action   (run %{gen})))
 
 (library
