@@ -1,15 +1,17 @@
+open Utils
+
 type enum = {
-    name: string;
+    ename: string;
     value: string;
     groups: string list;
   }
 
 type param = {
     pname: string;
-    ptype: string;
-    pgroup: string;
-    pclass: string;
-    plength: string;
+    gl_type: string;
+    gl_group: string;
+    gl_class: string;
+    length: string;
   }
 
 let null_param : param = Obj.magic 0
@@ -62,40 +64,6 @@ let rec attrs_assoc_opt key = function
   | ((_, name), value) :: _ when name = key -> Some value
   | _ :: tl -> attrs_assoc_opt key tl
 
-let contains_substring haystack needle =
-  let open String in
-  let hlen, nlen = length haystack, length needle in
-  let rec aux i =
-    if i + nlen > hlen
-    then false
-    else if sub haystack i nlen = needle
-    then true
-    else aux (i + 1)
-  in
-  aux 0
-
-let replace_char rep chr str =
-  String.init (String.length str) (fun i -> if str.[i] = rep then chr else str.[i])
-
-let is_weakly_ordered cmp l =
-  let rec ascend = function
-    | hd1 :: hd2 :: _ when cmp hd1 hd2 > 0 -> false
-    | _ :: tl -> ascend tl
-    | _ -> true
-  in
-  let rec descend = function
-    | hd1 :: hd2 :: _ when cmp hd1 hd2 < 0 -> false
-    | _ :: tl -> descend tl
-    | _ -> true
-  in
-  let rec undecided = function
-    | hd1 :: (hd2 :: _ as tl) when cmp hd1 hd2 > 0 -> descend tl
-    | hd1 :: (hd2 :: _ as tl) when cmp hd1 hd2 < 0 -> ascend tl
-    | _ :: tl -> undecided tl
-    | _ -> true
-  in
-  undecided l
-
 let propagate_groups_by_value enums =
   let enums =
     if is_weakly_ordered (fun e1 e2 -> String.compare e1.value e2.value) enums
@@ -138,10 +106,10 @@ let load filename =
   let read_enum attrs =
     drop ();
     try
-      let name = attrs_assoc "name" attrs in
+      let ename = attrs_assoc "name" attrs in
       let value = attrs_assoc "value" attrs in
       let groups = Option.fold ~none:[] ~some:(String.split_on_char ',') (attrs_assoc_opt "group" attrs) in
-      { name; value; groups }
+      { ename; value; groups }
     with
     | Not_found ->
        let prefix = ref "" in
@@ -154,27 +122,31 @@ let load filename =
        raise Not_found
   in
   let read_param attrs =
-    let pgroup = attrs_assoc_opt "group" attrs |> function None | Some "Boolean" -> "" | Some g -> g in
-    let pclass = Option.value (attrs_assoc_opt "class" attrs) ~default:"" |> replace_char ' ' '_' in
-    let plength = Option.value (attrs_assoc_opt "len" attrs) ~default:"" in
-    let rec aux depth ptype pname is_name = match Xmlm.input xml_input with
-      | `El_start ((_, "name"), _) -> aux (depth + 1) ptype pname true
-      | `El_start ((_, "ptype"), _) -> aux (depth + 1) ptype pname false
+    let gl_group, gl_class = match attrs_assoc_opt "group" attrs, attrs_assoc_opt "class" attrs with
+      | Some "Boolean", None -> "", ""
+      | Some "ShaderBinaryFormat", None -> "", "shader_binary_format"
+      | Some "ProgramBinaryFormat", None -> "", "program_binary_format"
+      | g, p -> Option.(value g ~default:"", fold ~none:"" ~some:(replace_char ' ' '_') p)
+    in
+    let length = Option.value (attrs_assoc_opt "len" attrs) ~default:"" in
+    let rec aux depth gl_type pname is_name = match Xmlm.input xml_input with
+      | `El_start ((_, "name"), _) -> aux (depth + 1) gl_type pname true
+      | `El_start ((_, "ptype"), _) -> aux (depth + 1) gl_type pname false
       | `El_start ((_, name), _) ->
          Printf.eprintf "Don’t know what to do with element %s at param scope.\n%!" name;
-         drop (); aux depth ptype pname is_name
-      | `El_end when depth > 1 -> aux (depth - 1) ptype pname false
+         drop (); aux depth gl_type pname is_name
+      | `El_end when depth > 1 -> aux (depth - 1) gl_type pname false
       | `El_end ->
-         if pclass <> "" && not (contains_substring ptype "GLuint" || contains_substring ptype "GLsync") then
+         if gl_class <> "" && not (List.exists (contains_substring gl_type) ["GLuint"; "GLsync"; "GLenum"]) then
            Printf.eprintf "Found parameter \"%s\" with non-empty class \"%s\" and unexpected type \"%s\".\n%!"
-             pname pclass ptype;
-         { pname; ptype; pgroup; pclass; plength }
-      | `Data str when is_name && pname = "" -> aux depth ptype str true
+             pname gl_class gl_type;
+         { pname; gl_type; gl_group; gl_class; length }
+      | `Data str when is_name && pname = "" -> aux depth gl_type str true
       | `Data str when is_name ->
          Printf.eprintf "Found parameter with several names (current: \"%s\", new: \"%s\"); keeping current name.\n%!" pname str;
-         aux depth ptype pname is_name
-      | `Data str -> aux depth (if ptype = "" then str else Printf.sprintf "%s %s" ptype str) pname false
-      | `Dtd _ -> aux depth ptype pname is_name
+         aux depth gl_type pname is_name
+      | `Data str -> aux depth (if gl_type = "" then str else Printf.sprintf "%s %s" gl_type str) pname false
+      | `Dtd _ -> aux depth gl_type pname is_name
     in
     aux 1 "" "" false
   in
@@ -190,11 +162,11 @@ let load filename =
          drop (); aux acc
       | `El_end ->
          List.iter (fun enum ->
-             match Hashtbl.find_opt enums_by_name enum.name with
-             | None -> Hashtbl.add enums_by_name enum.name enum
+             match Hashtbl.find_opt enums_by_name enum.ename with
+             | None -> Hashtbl.add enums_by_name enum.ename enum
              | Some current ->
                 Printf.eprintf "Found duplicated enum \"%s\" (current value: \"%s\", new value: \"%s\"); keeping current value.\n%!"
-                  enum.name current.value enum.value
+                  enum.ename current.value enum.value
            ) (if propagate_groups then propagate_groups_by_value acc else acc)
       | `Data _ ->
          Printf.eprintf "Don’t know what to do with data at enums scope.\n%!";
@@ -344,4 +316,5 @@ let load filename =
     if not (Xmlm.eoi xml_input) then global_scope ()
   in
   global_scope ();
+  close_in_noerr opengl_registry_in;
   enums_by_name, commands_by_name, List.rev !features

@@ -1,193 +1,61 @@
+open Utils
 open Registry
 
-let starts_with str substr =
-  String.(length str >= length substr && sub str 0 (length substr) = substr)
+type ml_type =
+  | Unit
+  | Int
+  | Bool
+  | Float
+  | String
+  | Int64
+  | Type of string
+  | Enum of string
+  | List of ml_type
+  | Array of ml_type
+  | Bigarray of string * string
+  | Unimplemented
 
-let ends_with str substr =
-  String.(length str >= length substr && sub str (length str - length substr) (length substr) = substr)
+let caml_type_of_param param =
+  match param.gl_type with
+  | _ when param.gl_class <> "" && ends_with param.gl_type "*" && param.length <> "1" -> Array (Type param.gl_class)
+  | _ when param.gl_class <> "" -> Type param.gl_class
+  | "void" -> Unit
+  | "GLenum" -> Enum param.gl_group
+  | "GLenum *" when param.length = "1" -> Enum param.gl_group
+  | "const GLenum *" -> Array (Enum param.gl_group)
+  | "GLboolean" -> Bool
+  | "GLboolean *" when param.length = "1" -> Bool
+  | "GLboolean *" -> Array Bool
+  | "GLchar *" | "const GLchar *" | "const GLubyte *" -> String
+  | "const GLchar *const*" -> Array String
+  | "GLfloat" | "GLdouble" -> Float
+  | "GLfloat *" when param.length = "1" -> Float
+  | "GLfloat *" -> Array Float
+  | "const GLfloat *" -> Bigarray ("float", "float32_elt")
+  | "GLint" | "GLuint" | "GLsizei" | "GLintptr" | "GLsizeiptr" -> Int
+  | "GLuint64" -> Int64
+  | "GLint *" | "GLuint *" | "GLsizei *" when param.length = "1" -> Int
+  | "GLint *" | "GLuint *" | "GLsizei *" -> Array Int
+  | "const GLint *" | "const GLuint *" -> Bigarray ("int32", "int32_elt")
+  | "const GLsizei *" -> Bigarray ("nativeint", "nativeint_elt")
+  | "const void *" -> Bigarray ("'a", "'b")
+  | "GLbitfield" when param.gl_group = "" -> Int
+  | "GLbitfield" -> List (Enum param.gl_group)
+  | _ -> Unimplemented
 
-let replace_if_reserved_caml_word = function
-  | "type" -> "kind"
-  | "end" -> "finish"
-  | "val" -> "value"
-  | s -> s
-
-let pretty_enum_name str =
-  String.split_on_char '_' str
-  |> List.tl
-  |> List.map String.lowercase_ascii
-  |> List.map String.capitalize_ascii
-  |> String.concat ""
-
-let caml_type_of_param param = match param.ptype with
-  | _ when param.pclass <> "" && ends_with param.ptype "*" -> param.pclass ^ " array"
-  | _ when param.pclass <> "" -> param.pclass
-  | "void" -> "unit"
-  | "GLenum" when param.pgroup = "ShaderBinaryFormat" || param.pgroup = "ProgramBinaryFormat" -> "int"
-  | "GLenum *" when param.pgroup = "ShaderBinaryFormat" || param.pgroup = "ProgramBinaryFormat" && param.plength = "1" -> "int"
-  | "GLenum" -> Printf.sprintf "[`%s] enum" param.pgroup
-  | "GLenum *" when param.plength = "1" -> Printf.sprintf "[`%s] enum" param.pgroup
-  | "GLsync" -> "sync"
-  | "GLboolean" -> "bool"
-  | "GLboolean *" when param.plength = "1" -> "bool"
-  | "GLboolean *" -> "bool array"
-  | "const GLchar *" -> "string"
-  | "const GLchar *const*" -> "string array"
-  | "GLchar *" -> "bytes"
-  | "GLfloat" | "GLdouble" -> "float"
-  | "GLfloat *" when param.plength = "1" -> "float"
-  | "const GLfloat *" | "GLfloat *" -> "float array"
-  | "GLint" | "GLuint" | "GLsizei" | "GLintptr" | "GLsizeiptr" -> "int"
-  | "const GLint *" | "const GLuint *" | "const GLsizei *" -> "int array"
-  | "GLint *" | "GLuint *" | "GLsizei *" when param.plength = "1" -> "int"
-  | "GLint *" | "GLuint *" | "GLsizei *" -> "int array"
-  | "GLbitfield" when param.pgroup = "" -> "int"
-  | "GLbitfield" -> Printf.sprintf "[`%s] enum list" param.pgroup
-  | _ -> "'z"
-
-let print_enums enums_by_name =
-  Hashtbl.iter (fun _ enum ->
-      Printf.eprintf "Enum %s\n  Value: %s\n" enum.name enum.value;
-      if enum.groups <> [] then (
-        Printf.eprintf "  Groups:\n";
-        List.iter (fun group -> Printf.eprintf "    %s\n" group) enum.groups
-      )
-    ) enums_by_name
-
-let print_groups enums_by_group =
-  Hashtbl.iter (fun group enums ->
-      Printf.eprintf "Group %s\n  Enums:\n" group;
-      List.iter (fun enum -> Printf.eprintf "    %s\n" enum.name) enums
-    ) enums_by_group
-
-let print_commands commands_by_name =
-  Hashtbl.iter (fun _ command ->
-      Printf.eprintf "Command %s:\n" command.proto.pname;
-      if command.alias <> "" then Printf.eprintf "  Alias of %s\n" command.alias;
-      Printf.eprintf "  Return type: \"%s\"" command.proto.ptype;
-      if command.proto.pgroup <> "" || command.proto.pclass <> "" then (
-        let prefix = ref " (" in
-        if command.proto.pgroup <> "" then (
-          Printf.eprintf "%sgroup: \"%s\"" !prefix command.proto.pgroup;
-          prefix := "; "
-        );
-        if command.proto.pclass <> "" then (
-          Printf.eprintf "%sclass: \"%s\"" !prefix command.proto.pclass;
-          prefix := "; "
-        );
-        Printf.eprintf ")"
-      );
-      Printf.eprintf "\n  Parameters:\n";
-      if command.params <> [] then
-        List.iter (fun param ->
-            Printf.eprintf "    %s (type: \"%s\"" param.pname param.ptype;
-            if param.pgroup <> "" then Printf.eprintf "; group: \"%s\"" param.pgroup;
-            if param.pclass <> "" then Printf.eprintf "; class: \"%s\"" param.pclass;
-            if param.plength <> "" then Printf.eprintf "; length: \"%s\"" param.plength;
-            Printf.eprintf ")\n"
-          ) command.params
-    ) commands_by_name
-
-let print_features features =
-  List.iter (fun feature ->
-      Printf.eprintf "%s api, version %s\n" (string_of_api feature.api) feature.version;
-      if feature.required_enums <> [] then (
-        Printf.eprintf "  Required enums:\n";
-        List.iter (Printf.eprintf "    %s\n") feature.required_enums
-      );
-      if feature.required_commands <> [] then (
-        Printf.eprintf "  Required commands:\n";
-        List.iter (Printf.eprintf "    %s\n") feature.required_commands
-      );
-      if feature.removed_enums <> [] then (
-        Printf.eprintf "  Removed enums:\n";
-        List.iter (Printf.eprintf "    %s\n") feature.removed_enums
-      );
-      if feature.removed_commands <> [] then (
-        Printf.eprintf "  Removed commands:\n";
-        List.iter (Printf.eprintf "    %s\n") feature.removed_commands
-      )
-    ) features
-
-let print_identical_groups enums_by_group =
-  let rec aux = function
-    | (g1, e1) :: ((g2, e2) :: _ as tl) ->
-       if e1 = e2 then Printf.eprintf "Groups \"%s\" and \"%s\" are identical.\n" g1 g2;
-       aux tl
-    | _ -> ()
-  in
-  let open List in
-  of_seq (Hashtbl.to_seq enums_by_group)
-  |> rev_map (fun (group, enums) -> group, sort (fun (e1 : enum) e2 -> String.compare e1.name e2.name) enums)
-  |> sort (fun (_, (e1 : enum list)) (_, e2) -> Stdlib.compare e1 e2)
-  |> aux
-
-let print_groups_partition enums_by_group =
-  let module GroupSet = Set.Make(
-    struct
-      type t = string * enum list
-      let compare (g1, _) (g2, _) = String.compare g1 g2
-    end)
-  in
-  let prefix = ref "" in
-  let rec aux (group, enums) rem_groups =
-    let pulled_groups =
-      List.fold_left (fun acc enum ->
-          List.fold_left (fun acc group ->
-              if List.mem group acc then acc else group :: acc
-            ) acc enum.groups
-        ) [] enums
-    in
-    Printf.eprintf "%s%s" !prefix group;
-    prefix := ", ";
-    List.fold_left (fun rem_groups group ->
-        try
-          let elt = GroupSet.find (group, []) rem_groups in
-          aux elt (GroupSet.remove elt rem_groups)
-        with Not_found -> rem_groups
-      ) rem_groups pulled_groups
-  in
-  let rec loop groups =
-    if not (GroupSet.is_empty groups) then (
-      let elt = GroupSet.choose groups in
-      let rem_groups = aux elt (GroupSet.remove elt groups) in
-      Printf.eprintf "\n";
-      prefix := "\n";
-      loop rem_groups
-    )
-  in
-  Printf.eprintf "Groups partition:\n\n";
-  loop (GroupSet.of_seq (Hashtbl.to_seq enums_by_group))
-
-let print_features_short features =
-  List.iter (fun feature ->
-      Printf.eprintf "%s api, version %s, %s profile\n"
-        (string_of_api feature.api) feature.version (string_of_profile feature.profile)
-    ) features
-
-let print_empty_groups commands_by_name enums_by_group =
-  Printf.eprintf "Groups with no enum:\n  From parameters with no class:\n";
-  Hashtbl.fold (fun _ command acc ->
-      List.fold_left (fun acc param ->
-          if param.pgroup = "" || param.pclass <> "" || Hashtbl.mem enums_by_group param.pgroup || List.mem param.pgroup acc
-          then acc
-          else param.pgroup :: acc
-        ) acc (command.proto :: command.params)
-    ) commands_by_name []
-  |> List.iter (Printf.eprintf "    %s\n");
-  Printf.eprintf "  From parameters with a class:\n";
-  Hashtbl.fold (fun _ command acc ->
-      List.fold_left (fun acc param ->
-          if param.pgroup = "" || param.pclass = "" || Hashtbl.mem enums_by_group param.pgroup || List.mem param.pgroup acc
-          then acc
-          else param.pgroup :: acc
-        ) acc (command.proto :: command.params)
-    ) commands_by_name []
-  |> List.iter (Printf.eprintf "    %s\n")
-
-let print_classes classes =
-  Printf.eprintf "Classes:\n";
-  List.iter (Printf.eprintf "  \"%s\"\n") classes
+let rec string_of_caml_type = function
+  | Unit -> "unit"
+  | Int -> "int"
+  | Bool -> "bool"
+  | Float -> "float"
+  | String -> "string"
+  | Int64 -> "int64"
+  | Type gl_class -> gl_class
+  | Enum gl_group -> Printf.sprintf "[`%s] enum" gl_group
+  | List ml_type -> string_of_caml_type ml_type ^ " list"
+  | Array ml_type -> string_of_caml_type ml_type ^ " array"
+  | Bigarray (t, elt) -> Printf.sprintf "(%s, %s, c_layout) Genarray.t" t elt
+  | Unimplemented -> "'z"
 
 let filter_by_feature enums_by_name commands_by_name features =
   let filtered_enums_by_name = Hashtbl.create 4096 in
@@ -211,14 +79,14 @@ let filter_by_feature enums_by_name commands_by_name features =
   let accessible_groups =
     Hashtbl.fold (fun _ command acc ->
         List.fold_left (fun acc param ->
-            if List.mem param.pgroup acc then acc else param.pgroup :: acc
+            if List.mem param.gl_group acc then acc else param.gl_group :: acc
           ) acc (command.proto :: command.params)
       ) filtered_commands_by_name []
   in
   Hashtbl.filter_map_inplace (fun _ enum ->
       let groups = List.filter (ListLabels.mem ~set:accessible_groups) enum.groups in
       if groups = [] then (
-        Printf.eprintf "Enum \"%s\" does not belong to any useable group; removed.\n%!" enum.name;
+        Printf.eprintf "Enum \"%s\" required but does not belong to any useable group; removed.\n%!" enum.ename;
         None
       ) else Some {enum with groups}
     ) filtered_enums_by_name;
@@ -237,15 +105,15 @@ let hash_enums_by_group enums_by_name =
 let partition_params_in_out command =
   let rec aux pin pout = function
     | [] ->
-       let pin = List.filter (fun p -> List.for_all (fun p' -> p.pname <> p'.plength) pin) pin in
-       let pout = List.filter (fun p -> List.for_all (fun p' -> p.pname <> p'.plength) pout) pout in
+       let pin = List.filter (fun p -> List.for_all (fun p' -> p.pname <> p'.length) pin) pin in
+       let pout = List.filter (fun p -> List.for_all (fun p' -> p.pname <> p'.length) pout) pout in
        List.rev pin, List.rev pout
     | hd :: tl ->
-       if ends_with hd.ptype "*" && not (starts_with hd.ptype "const")
+       if ends_with hd.gl_type "*" && not (starts_with hd.gl_type "const")
        then aux pin (hd :: pout) tl
        else aux (hd :: pin) pout tl
   in
-  let pout = if command.proto.ptype = "void" then [] else [command.proto] in
+  let pout = if command.proto.gl_type = "void" then [] else [command.proto] in
   aux [] pout command.params
 
 let () =
@@ -256,39 +124,66 @@ let () =
   in
   try
     let raw_enums_by_name, raw_commands_by_name, features = Registry.load "gl.xml" in
-    let features = List.filter (fun f -> f.api = GLES2_API) features in
+    let api, version = GLES2_API, "2.0" in
+    let features = List.filter (fun f -> f.api = api && f.version <= version) features in
     let enums_by_name, commands_by_name = filter_by_feature raw_enums_by_name raw_commands_by_name features in
     let classes =
       Hashtbl.fold (fun _ command acc ->
           List.fold_left (fun acc param ->
-              if param.pclass = "" || List.mem param.pclass acc then acc else param.pclass :: acc
+              if param.gl_class = "" || List.mem param.gl_class acc then acc else param.gl_class :: acc
             ) acc (command.proto :: command.params)
         ) commands_by_name []
     in
     (* DEBUG *)
 (*
-    print_features_short features;
+    Debug.print_features_short features;
     Printf.eprintf "\n%!";
-    print_enums enums_by_name;
+    Debug.print_enums enums_by_name;
     Printf.eprintf "\n%!";
-    print_commands commands_by_name;
+    Debug.print_commands commands_by_name;
     Printf.eprintf "\n%!";
-    print_classes classes;
+ *)
+    Debug.print_classes classes;
     Printf.eprintf "\n%!";
     let enums_by_group = hash_enums_by_group enums_by_name in
-    print_groups enums_by_group;
+(*
+    Debug.print_groups enums_by_group;
     Printf.eprintf "\n%!";
-    print_empty_groups commands_by_name enums_by_group;
+ *)
+    Debug.print_empty_groups commands_by_name enums_by_group;
     Printf.eprintf "\n%!";
-    print_identical_groups enums_by_group;
+(*
+    Debug.print_identical_groups enums_by_group;
     Printf.eprintf "\n%!";
-    print_groups_partition enums_by_group;
+    Debug.print_groups_partition enums_by_group;
     Printf.eprintf "\n%!";
  *)
     (* /DEBUG *)
     let open Printf in
+    (* OCaml: static header *)
+    fprintf ml_out "(* Generated by GL-OCaml for API %s v%s. *)
+
+open Bigarray
+
+" (string_of_api api) version;
+    (* C: static header *)
+    fprintf c_out "/* Generated by GL-OCaml for API %s v%s. */
+
+#define GL_GLEXT_PROTOTYPES
+#include <GL/gl.h>
+#include <caml/mlvalues.h>
+#include <caml/alloc.h>
+#include <caml/memory.h>
+#include <caml/fail.h>
+#include <caml/bigarray.h>
+
+#define CAMLvoid CAMLunused_start value unit CAMLunused_end
+
+#define Val_none Val_int(0)
+
+" (string_of_api api) version;
+    (* Types and enums. *)
     List.iter (fprintf ml_out "type %s [@@immediate]\n") classes;
-    fprintf c_out "#include <GLES3/gl32.h>\n\n"; (* FIXME: use the header that corresponds to the API we’re generating for. *)
     fprintf ml_out "\ntype 'k enum =\n";
     fprintf c_out "GLenum enums[] = {\n";
     Hashtbl.to_seq_values enums_by_name
@@ -296,47 +191,89 @@ let () =
     |> List.sort (fun e1 e2 -> String.compare e1.value e2.value)
     |> List.iter (fun enum ->
            let prefix = ref "<" in
-           fprintf ml_out "  | %s : [" (pretty_enum_name enum.name);
+           fprintf ml_out "  | %s : [" (to_pascal_case enum.ename);
            List.iter (fun group ->
                fprintf ml_out "%s`%s" !prefix group;
                prefix := "|"
              ) enum.groups;
            fprintf ml_out "] enum\n";
-           fprintf c_out "    %s,\n" enum.name;
+           fprintf c_out "    %s,\n" enum.ename;
          );
     fprintf ml_out "\n";
     fprintf c_out "};\n\n";
-    Hashtbl.iter (fun _ command ->
-        let pin, pout = partition_params_in_out command in
-        fprintf ml_out "external %s :" command.proto.pname;
-        if pin = []
-        then fprintf ml_out " unit"
-        else (
-          let prefix = ref " " in
-          List.iter (fun param ->
-              let ml_ptype = caml_type_of_param param in
-              if ml_ptype = "'z" then
-                Printf.eprintf "No OCaml replacement for parameter \"%s\" of type \"%s\" in command %s.\n%!" param.pname param.ptype command.proto.pname;
-              fprintf ml_out "%s%s:%s" !prefix (replace_if_reserved_caml_word param.pname) ml_ptype;
-              prefix := " -> "
-            ) pin
-        );
-        let stub_name =
-          if command.alias <> "" && Hashtbl.mem commands_by_name command.alias
-          then command.alias
-          else command.proto.pname
-        in
-        let result_type =
-          List.fold_left (fun str param ->
-              if str = "unit"
-              then caml_type_of_param param
-              else Printf.sprintf "%s * %s" str (caml_type_of_param param)
-            ) "unit" pout
-        in
-        if List.length command.params > 5
-        then fprintf ml_out " -> %s = \"caml_%s_byte\" \"caml_%s\"\n" result_type stub_name stub_name
-        else fprintf ml_out " -> %s = \"caml_%s\"\n" result_type stub_name
-      ) commands_by_name;
+    (* Functions. *)
+    Hashtbl.to_seq_values commands_by_name
+    |> List.of_seq
+    |> List.sort (fun c1 c2 -> String.compare c1.proto.pname c2.proto.pname)
+    |> List.iter (fun command ->
+           (* DEBUG: copy the C prototypes. *)
+           fprintf ml_out "(* %s %s(" command.proto.gl_type command.proto.pname;
+           fprintf c_out "/* %s %s(" command.proto.gl_type command.proto.pname;
+           let prefix = ref "" in
+           List.iter (fun param ->
+               fprintf ml_out "%s%s %s" !prefix param.gl_type param.pname;
+               fprintf c_out "%s%s %s" !prefix param.gl_type param.pname;
+               prefix := ", "
+             ) command.params;
+           fprintf ml_out ") *)\n";
+           fprintf c_out ") */\n";
+           (* /DEBUG *)
+           let pin, pout = partition_params_in_out command in
+           let stub_name =
+             if command.alias <> "" && Hashtbl.mem commands_by_name command.alias
+             then command.alias
+             else command.proto.pname
+           in
+           (* OCaml *)
+           fprintf ml_out "external %s :" (remove_gl_prefix command.proto.pname);
+           if pin = []
+           then fprintf ml_out " unit"
+           else (
+             let prefix = ref " " in
+             List.iter (fun param ->
+                 let ml_type = caml_type_of_param param in
+                 if ml_type = Unimplemented then
+                   Printf.eprintf "No OCaml replacement for parameter \"%s\" of type \"%s\" in command %s.\n%!"
+                     param.pname param.gl_type command.proto.pname;
+                 fprintf ml_out "%s%s:%s" !prefix (replace_if_reserved_caml_word param.pname) (string_of_caml_type ml_type);
+                 prefix := " -> "
+               ) pin
+           );
+           let result_type =
+             List.fold_left (fun str param ->
+                 let ml_type = caml_type_of_param param in
+                 if ml_type = Unimplemented then
+                   Printf.eprintf "No OCaml replacement for output \"%s\" of type \"%s\" in command %s.\n%!"
+                     param.pname param.gl_type command.proto.pname;
+                 if str = "unit"
+                 then string_of_caml_type ml_type
+                 else Printf.sprintf "%s * %s" str (string_of_caml_type ml_type)
+               ) "unit" pout
+           in
+           if List.length pin > 5
+           then fprintf ml_out " -> %s = \"caml_%s_byte\" \"caml_%s\"\n" result_type stub_name stub_name
+           else fprintf ml_out " -> %s = \"caml_%s\"\n" result_type stub_name;
+           (* C *)
+           fprintf c_out "CAMLprim value caml_%s(" stub_name;
+           if pin = []
+           then fprintf c_out "CAMLvoid"
+           else (
+             let prefix = ref "" in
+             List.iter (fun param ->
+                 fprintf c_out "%svalue %s" !prefix (replace_if_reserved_c_word param.pname);
+                 prefix := ", "
+               ) pin
+           );
+           fprintf c_out ")\n{\n";
+           List.iter (fun param -> fprintf c_out "    (void)%s;\n" (replace_if_reserved_c_word param.pname)) pin;
+           fprintf c_out "    caml_failwith(\"Unimplemented\");\n}\n\n";
+           if List.length pin > 5 then (
+             fprintf c_out "CAMLprim value caml_%s_byte(value* val_array, int val_count)\n{\n    (void)val_count;\n    return caml_%s(" stub_name stub_name;
+             let prefix = ref "" in
+             List.iteri (fun i _ -> fprintf c_out "%sval_array[%d]" !prefix i; prefix := ", ") pin;
+             fprintf c_out ");\n}\n\n";
+           )
+         );
     close_out ml_out;
     close_out c_out
   with
