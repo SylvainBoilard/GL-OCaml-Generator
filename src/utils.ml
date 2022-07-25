@@ -1,8 +1,26 @@
-let starts_with str substr =
-  String.(length str >= length substr && sub str 0 (length substr) = substr)
+module String =
+  struct
+    include String
 
-let ends_with str substr =
-  String.(length str >= length substr && sub str (length str - length substr) (length substr) = substr)
+    let contains_string haystack needle =
+      let nlen = length needle in
+      let last_index = length haystack - nlen in
+      let rec aux hi ni =
+        if ni = nlen
+        then true
+        else if haystack.[hi] <> needle.[ni]
+        then false
+        else aux (hi + 1) (ni + 1)
+      in
+      let rec loop i =
+        if i > last_index
+        then false
+        else if aux i 0
+        then true
+        else loop (i + 1)
+      in
+      loop 0
+  end
 
 let to_pascal_case str =
   String.split_on_char '_' str
@@ -10,21 +28,6 @@ let to_pascal_case str =
   |> List.map String.lowercase_ascii
   |> List.map String.capitalize_ascii
   |> String.concat ""
-
-let contains_substring haystack needle =
-  let open String in
-  let hlen, nlen = length haystack, length needle in
-  let rec aux i =
-    if i + nlen > hlen
-    then false
-    else if sub haystack i nlen = needle
-    then true
-    else aux (i + 1)
-  in
-  aux 0
-
-let replace_char rep chr str =
-  String.(init (length str) (fun i -> if str.[i] = rep then chr else str.[i]))
 
 let is_weakly_ordered cmp l =
   let rec ascend = function

@@ -126,7 +126,7 @@ let load filename =
       | Some "Boolean", None -> "", ""
       | Some "ShaderBinaryFormat", None -> "", "shader_binary_format"
       | Some "ProgramBinaryFormat", None -> "", "program_binary_format"
-      | g, p -> Option.(value g ~default:"", fold ~none:"" ~some:(replace_char ' ' '_') p)
+      | g, p -> Option.(value g ~default:"", fold ~none:"" ~some:(String.map (function ' ' -> '_' | c -> c)) p)
     in
     let length = Option.value (attrs_assoc_opt "len" attrs) ~default:"" in
     let rec aux depth gl_type pname is_name = match Xmlm.input xml_input with
@@ -137,7 +137,7 @@ let load filename =
          drop (); aux depth gl_type pname is_name
       | `El_end when depth > 1 -> aux (depth - 1) gl_type pname false
       | `El_end ->
-         if gl_class <> "" && not (List.exists (contains_substring gl_type) ["GLuint"; "GLsync"; "GLenum"]) then
+         if gl_class <> "" && not (List.exists (String.contains_string gl_type) ["GLuint"; "GLsync"; "GLenum"]) then
            Printf.eprintf "Found parameter \"%s\" with non-empty class \"%s\" and unexpected type \"%s\".\n%!"
              pname gl_class gl_type;
          { pname; gl_type; gl_group; gl_class; length }
