@@ -43,7 +43,7 @@ let caml_type_of_param param =
   | "const GLint *" | "const GLuint *" -> Bigarray ("int32", "int32_elt")
   | "const GLsizei *" -> Bigarray ("nativeint", "nativeint_elt")
   | "const void *" -> Bigarray ("'a", "'b")
-  | "GLbitfield" when param.gl_group = "" -> Int
+  | "GLbitfield" when param.gl_group = "" -> List Int
   | "GLbitfield" -> List (Enum param.gl_group)
   | _ -> Unimplemented
 
@@ -106,19 +106,6 @@ let hash_enums_by_group enums_by_name =
     ) enums_by_name;
   enums_by_group
 
-let partition_params_in_out command =
-  let rec aux pin pout = function
-    | [] ->
-       let pin = List.filter (fun p -> List.for_all (fun p' -> p.pname <> p'.length) pin) pin in
-       let pout = List.filter (fun p -> List.for_all (fun p' -> p.pname <> p'.length) pout) pout in
-       List.rev pin, List.rev pout
-    | hd :: tl ->
-       if String.ends_with ~suffix:"*" hd.gl_type && not (String.starts_with ~prefix:"const" hd.gl_type)
-       then aux pin (hd :: pout) tl
-       else aux (hd :: pin) pout tl
-  in
-  aux [] [] command.params
-
 let () =
   let ml_out, c_out =
     if Sys.argv.(0) <> "./generator.exe"
@@ -180,7 +167,7 @@ open Bigarray
 
 #define Val_none Val_int(0)
 
-static size_t find_enum_offset(GLenum gl_enums[], size_t length, GLenum gl_enum)
+static size_t find_enum_offset(const GLenum gl_enums[], size_t length, GLenum gl_enum)
 {
     size_t min = 0, max = length;
     while (min < max)
@@ -194,11 +181,22 @@ static size_t find_enum_offset(GLenum gl_enums[], size_t length, GLenum gl_enum)
     return min;
 }
 
+static GLbitfield glbitfield_of_enum_list(const GLenum gl_enums[], value list)
+{
+    GLbitfield ret = 0;
+    while (list != Val_emptylist)
+    {
+        ret |= gl_enums[Int_val(Field(list, 0))];
+        list = Field(list, 1);
+    }
+    return ret;
+}
+
 " (string_of_api api) version;
     (* Types and enums. *)
     List.iter (fprintf ml_out "type %s [@@immediate]\n") classes;
     fprintf ml_out "\ntype 'k enum =\n";
-    fprintf c_out "GLenum gl_enums[] = {\n";
+    fprintf c_out "const GLenum gl_enums[] = {\n";
     Hashtbl.to_seq_values enums_by_name
     |> List.of_seq
     |> List.sort (fun e1 e2 -> String.compare e1.value e2.value)
@@ -223,20 +221,30 @@ static size_t find_enum_offset(GLenum gl_enums[], size_t length, GLenum gl_enum)
            fprintf ml_out "(* %s %s(%s) *)\n" command.proto.gl_type command.proto.pname gl_params;
            fprintf c_out "/* %s %s(%s) */\n" command.proto.gl_type command.proto.pname gl_params;
            (* /DEBUG *)
-           let pin, pout = partition_params_in_out command in
-           let all_outputs = if command.proto.gl_type = "void" then pout else command.proto :: pout in
+           let input_parameters, output_parameters =
+             List.partition (fun param ->
+                 not (String.ends_with ~suffix:"*" param.gl_type) || (String.starts_with ~prefix:"const" param.gl_type)
+               ) command.params
+           in
+           let explicit_input_parameters, implicit_input_parameters =
+             List.partition (fun p -> List.for_all (fun p' -> p.pname <> p'.length) input_parameters) input_parameters
+           in
+           let explicit_output_parameters, _implicit_output_parameters =
+             List.partition (fun p -> List.for_all (fun p' -> p.pname <> p'.length) output_parameters) output_parameters
+           in
+           let all_explicit_outputs = if command.proto.gl_type = "void" then explicit_output_parameters else command.proto :: explicit_output_parameters in
            let stub_name =
              if command.alias <> "" && Hashtbl.mem commands_by_name command.alias
              then command.alias
              else command.proto.pname
            in
-           let needs_byte_version = List.compare_length_with pin 5 > 0 in
+           let needs_byte_version = List.compare_length_with explicit_input_parameters 5 > 0 in
            let needs_block_allocation =
-             List.compare_length_with all_outputs 1 > 0
-             || List.exists (fun param -> is_caml_type_block (caml_type_of_param param)) all_outputs
+             List.compare_length_with all_explicit_outputs 1 > 0
+             || List.exists (fun param -> is_caml_type_block (caml_type_of_param param)) all_explicit_outputs
            in
            (* OCaml *)
-           let function_type = match pin with
+           let function_type = match explicit_input_parameters with
              | [] -> "unit"
              | _ ->
                 List.map (fun param ->
@@ -245,10 +253,10 @@ static size_t find_enum_offset(GLenum gl_enums[], size_t length, GLenum gl_enum)
                       Printf.eprintf "No OCaml replacement for parameter \"%s\" of type \"%s\" in command %s.\n%!"
                         param.pname param.gl_type command.proto.pname;
                     sprintf "%s:%s" (replace_if_reserved_caml_word param.pname) (string_of_caml_type ml_type)
-                  ) pin
+                  ) explicit_input_parameters
                 |> String.concat " -> "
            in
-           let result_type = match all_outputs with
+           let result_type = match all_explicit_outputs with
              | [] -> "unit"
              | _ ->
                 List.map (fun param ->
@@ -257,7 +265,7 @@ static size_t find_enum_offset(GLenum gl_enums[], size_t length, GLenum gl_enum)
                       Printf.eprintf "No OCaml replacement for output \"%s\" of type \"%s\" in command %s.\n%!"
                         param.pname param.gl_type command.proto.pname;
                     string_of_caml_type ml_type
-                  ) all_outputs
+                  ) all_explicit_outputs
                 |> String.concat " * "
            in
            let stub_names = match needs_byte_version with
@@ -271,31 +279,42 @@ static size_t find_enum_offset(GLenum gl_enums[], size_t length, GLenum gl_enum)
            fprintf ml_out "external %s : %s -> %s = %s%s\n"
              (remove_gl_prefix command.proto.pname) function_type result_type stub_names attributes;
            (* C *)
-           let stub_params = match pin with
+           let stub_params = match input_parameters with
              | [] -> "CAMLvoid"
              | _ ->
                 List.map (fun param ->
                     sprintf "value %s" (replace_if_reserved_c_word param.pname)
-                  ) pin
+                  ) explicit_input_parameters
                 |> String.concat ", "
            in
            fprintf c_out "CAMLprim value caml_%s(%s)\n{\n" stub_name stub_params;
            if not needs_block_allocation then (
-             if pout == all_outputs
+             if explicit_output_parameters == all_explicit_outputs
              then fprintf c_out "    %s(" command.proto.pname
              else fprintf c_out "    %s result = %s(" command.proto.gl_type command.proto.pname;
              let call_params =
                List.map (fun param ->
-                   let pname = replace_if_reserved_c_word param.pname in
-                   match caml_type_of_param param with
-                   | Int | Type _ -> sprintf "Int_val(%s)" pname
-                   | Bool -> sprintf "Bool_val(%s)" pname
-                   | Float -> sprintf "Double_val(%s)" pname
-                   | String -> sprintf "String_val(%s)" pname
-                   | Int64 -> sprintf "Int64_val(%s)" pname
-                   | Enum _ -> sprintf "gl_enums[Int_val(%s)]" pname
-                   | _ -> "NULL"
-                 ) pin
+                   if List.memq param implicit_input_parameters then
+                     let param = List.find (fun p -> p.length = param.pname) explicit_input_parameters in
+                     let pname = replace_if_reserved_c_word param.pname in
+                     match caml_type_of_param param with
+                     | Array _ -> sprintf "Wosize_val(%s)" pname
+                     | Bigarray _ -> sprintf "caml_ba_byte_size(Caml_ba_array_val(%s))" pname
+                     | _ -> "NULL"
+                   else
+                     let pname = replace_if_reserved_c_word param.pname in
+                     match caml_type_of_param param with
+                     | Int | Type _ -> sprintf "Int_val(%s)" pname
+                     | Bool -> sprintf "Bool_val(%s)" pname
+                     | Float -> sprintf "Double_val(%s)" pname
+                     | String -> sprintf "String_val(%s)" pname
+                     | Int64 -> sprintf "Int64_val(%s)" pname
+                     | Enum _ -> sprintf "gl_enums[Int_val(%s)]" pname
+                     | List _ -> sprintf "glbitfield_of_enum_list(gl_enums, %s)" pname
+                     | Array _ -> "NULL" (* TODO: requires copying the data to a C array with proper element type. *)
+                     | Bigarray _ -> sprintf "Caml_ba_data_val(%s)" pname
+                     | _ -> "NULL"
+                 ) command.params
                |> String.concat ", "
              in
              fprintf c_out "%s);\n" call_params;
@@ -305,13 +324,13 @@ static size_t find_enum_offset(GLenum gl_enums[], size_t length, GLenum gl_enum)
              | Enum _ -> fprintf c_out "    return Val_int(find_enum_offset(gl_enums, sizeof(gl_enums) / sizeof(*gl_enums), result));\n"
              | _ -> fprintf c_out "    return Val_unit;\n"
            ) else (
-             List.iter (fun param -> fprintf c_out "    (void)%s;\n" (replace_if_reserved_c_word param.pname)) pin;
+             List.iter (fun param -> fprintf c_out "    (void)%s;\n" (replace_if_reserved_c_word param.pname)) explicit_input_parameters;
              fprintf c_out "    caml_failwith(\"Unimplemented\");\n"
            );
            fprintf c_out "}\n\n";
            if needs_byte_version then (
              let call_params =
-               List.mapi (fun i _ -> sprintf "val_array[%d]" i) pin
+               List.mapi (fun i _ -> sprintf "val_array[%d]" i) explicit_input_parameters
                |> String.concat ", "
              in
              fprintf c_out "CAMLprim value caml_%s_byte(value* val_array, int val_count)\n{\n    (void)val_count;\n    return caml_%s(%s);\n}\n\n" stub_name stub_name call_params
