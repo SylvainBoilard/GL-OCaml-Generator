@@ -5,7 +5,6 @@
 
 (library
  (name            GL)
- (public_name     gl-ocaml)
  (modules         GL)
  (wrapped         false)
  (libraries       bigarray)
