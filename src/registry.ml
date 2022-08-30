@@ -4,6 +4,7 @@ type enum = {
     ename: string;
     value: string;
     groups: string list;
+    value_group: string;
   }
 
 type param = {
@@ -12,6 +13,8 @@ type param = {
     gl_group: string;
     gl_class: string;
     length: string;
+    length2: string;
+    value_for: string;
   }
 
 let null_param : param = Obj.magic 0
@@ -109,7 +112,8 @@ let load filename =
       let ename = attrs_assoc "name" attrs in
       let value = attrs_assoc "value" attrs in
       let groups = Option.fold ~none:[] ~some:(String.split_on_char ',') (attrs_assoc_opt "group" attrs) in
-      { ename; value; groups }
+      let value_group = Option.value (attrs_assoc_opt "value_group" attrs) ~default:"" in
+      { ename; value; groups; value_group }
     with
     | Not_found ->
        let prefix = ref "" in
@@ -129,6 +133,8 @@ let load filename =
       | g, p -> Option.(value g ~default:"", fold ~none:"" ~some:(String.map (function ' ' -> '_' | c -> c)) p)
     in
     let length = Option.value (attrs_assoc_opt "len" attrs) ~default:"" in
+    let length2 = Option.value (attrs_assoc_opt "len2" attrs) ~default:"" in
+    let value_for = Option.value (attrs_assoc_opt "value_for" attrs) ~default:"" in
     let rec aux depth gl_type pname is_name = match Xmlm.input xml_input with
       | `El_start ((_, "name"), _) -> aux (depth + 1) gl_type pname true
       | `El_start ((_, "ptype"), _) -> aux (depth + 1) gl_type pname false
@@ -137,10 +143,10 @@ let load filename =
          drop (); aux depth gl_type pname is_name
       | `El_end when depth > 1 -> aux (depth - 1) gl_type pname false
       | `El_end ->
-         if gl_class <> "" && not (List.exists (String.contains_string gl_type) ["GLuint"; "GLsync"; "GLenum"]) then
+         if gl_class <> "" && not (List.exists (String.contains_string gl_type) ["GLuint"; "GLsync"; "GLenum"; "const void *"]) then
            Printf.eprintf "Found parameter \"%s\" with non-empty class \"%s\" and unexpected type \"%s\".\n%!"
              pname gl_class gl_type;
-         { pname; gl_type; gl_group; gl_class; length }
+         { pname; gl_type; gl_group; gl_class; length; length2; value_for }
       | `Data str when is_name && pname = "" -> aux depth gl_type str true
       | `Data str when is_name ->
          Printf.eprintf "Found parameter with several names (current: \"%s\", new: \"%s\"); keeping current name.\n%!" pname str;

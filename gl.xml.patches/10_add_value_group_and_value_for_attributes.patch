@@ -1,0 +1,26 @@
+--- a/gl.xml
++++ b/gl.xml
+@@ -1055,10 +1055,10 @@
+         <enum value="0x2702" name="GL_NEAREST_MIPMAP_LINEAR" group="TextureMinFilter"/>
+         <enum value="0x2703" name="GL_LINEAR_MIPMAP_LINEAR" group="TextureMinFilter"/>
+             <unused start="0x2704" end="0x27FF" comment="Unused for TextureMinFilter"/>
+-        <enum value="0x2800" name="GL_TEXTURE_MAG_FILTER" group="SamplerParameterI,GetTextureParameter,TextureParameterName"/>
+-        <enum value="0x2801" name="GL_TEXTURE_MIN_FILTER" group="SamplerParameterI,GetTextureParameter,TextureParameterName"/>
+-        <enum value="0x2802" name="GL_TEXTURE_WRAP_S" group="SamplerParameterI,GetTextureParameter,TextureParameterName"/>
+-        <enum value="0x2803" name="GL_TEXTURE_WRAP_T" group="SamplerParameterI,GetTextureParameter,TextureParameterName"/>
++        <enum value="0x2800" name="GL_TEXTURE_MAG_FILTER" group="SamplerParameterI,GetTextureParameter,TextureParameterName" value_group="TextureMagFilter"/>
++        <enum value="0x2801" name="GL_TEXTURE_MIN_FILTER" group="SamplerParameterI,GetTextureParameter,TextureParameterName" value_group="TextureMinFilter"/>
++        <enum value="0x2802" name="GL_TEXTURE_WRAP_S" group="SamplerParameterI,GetTextureParameter,TextureParameterName" value_group="TextureWrapMode"/>
++        <enum value="0x2803" name="GL_TEXTURE_WRAP_T" group="SamplerParameterI,GetTextureParameter,TextureParameterName" value_group="TextureWrapMode"/>
+             <unused start="0x2804" end="0x28FF" comment="Unused for TextureParameterName"/>
+         <enum value="0x2900" name="GL_CLAMP" group="TextureWrapMode"/>
+         <enum value="0x2901" name="GL_REPEAT" group="TextureWrapMode"/>
+@@ -24562,7 +24562,7 @@
+             <proto>void <name>glTexParameteri</name></proto>
+             <param group="TextureTarget"><ptype>GLenum</ptype> <name>target</name></param>
+             <param group="TextureParameterName"><ptype>GLenum</ptype> <name>pname</name></param>
+-            <param group="CheckedInt32"><ptype>GLint</ptype> <name>param</name></param>
++            <param group="CheckedInt32" value_for="pname"><ptype>GLint</ptype> <name>param</name></param>
+             <glx type="render" opcode="107"/>
+         </command>
+         <command>

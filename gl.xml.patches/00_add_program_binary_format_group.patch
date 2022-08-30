@@ -1,0 +1,37 @@
+--- a/gl.xml
++++ b/gl.xml
+@@ -14607,7 +14607,7 @@
+             <param class="program"><ptype>GLuint</ptype> <name>program</name></param>
+             <param><ptype>GLsizei</ptype> <name>bufSize</name></param>
+             <param len="1"><ptype>GLsizei</ptype> *<name>length</name></param>
+-            <param len="1"><ptype>GLenum</ptype> *<name>binaryFormat</name></param>
++            <param group="ProgramBinaryFormat" len="1"><ptype>GLenum</ptype> *<name>binaryFormat</name></param>
+             <param len="bufSize">void *<name>binary</name></param>
+         </command>
+         <command>
+@@ -14615,7 +14615,7 @@
+             <param class="program"><ptype>GLuint</ptype> <name>program</name></param>
+             <param><ptype>GLsizei</ptype> <name>bufSize</name></param>
+             <param len="1"><ptype>GLsizei</ptype> *<name>length</name></param>
+-            <param len="1"><ptype>GLenum</ptype> *<name>binaryFormat</name></param>
++            <param group="ProgramBinaryFormat" len="1"><ptype>GLenum</ptype> *<name>binaryFormat</name></param>
+             <param len="bufSize">void *<name>binary</name></param>
+             <alias name="glGetProgramBinary"/>
+         </command>
+@@ -20409,14 +20409,14 @@
+         <command>
+             <proto>void <name>glProgramBinary</name></proto>
+             <param class="program"><ptype>GLuint</ptype> <name>program</name></param>
+-            <param><ptype>GLenum</ptype> <name>binaryFormat</name></param>
++            <param group="ProgramBinaryFormat"><ptype>GLenum</ptype> <name>binaryFormat</name></param>
+             <param len="length">const void *<name>binary</name></param>
+             <param><ptype>GLsizei</ptype> <name>length</name></param>
+         </command>
+         <command>
+             <proto>void <name>glProgramBinaryOES</name></proto>
+             <param class="program"><ptype>GLuint</ptype> <name>program</name></param>
+-            <param><ptype>GLenum</ptype> <name>binaryFormat</name></param>
++            <param group="ProgramBinaryFormat"><ptype>GLenum</ptype> <name>binaryFormat</name></param>
+             <param len="length">const void *<name>binary</name></param>
+             <param><ptype>GLint</ptype> <name>length</name></param>
+             <alias name="glProgramBinary"/>

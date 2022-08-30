@@ -1,0 +1,11 @@
+--- a/gl.xml
++++ b/gl.xml
+@@ -4852,7 +4852,7 @@
+         <enum value="0x8CD7" name="GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_OES"/>
+             <unused start="0x8CD8" vendor="ARB" comment="Removed 2005/09/26 in revision #117 of the FBO extension spec"/>
+             <!-- <enum value="0x8CD8" name="GL_FRAMEBUFFER_INCOMPLETE_DUPLICATE_ATTACHMENT_EXT"/> -->
+-        <enum value="0x8CD9" name="GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS"/>
++        <enum value="0x8CD9" name="GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS" group="FramebufferStatus"/>
+         <enum value="0x8CD9" name="GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS_EXT"/>
+         <enum value="0x8CD9" name="GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS_OES"/>
+         <enum value="0x8CDA" name="GL_FRAMEBUFFER_INCOMPLETE_FORMATS_EXT"/>
