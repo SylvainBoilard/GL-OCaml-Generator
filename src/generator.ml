@@ -122,11 +122,7 @@ let hash_enums_by_group enums_by_name =
   enums_by_group
 
 let () =
-  let ml_out, c_out =
-    if Sys.argv.(0) <> "./generator.exe"
-    then open_out "GL.ml", open_out "GL_stubs.c"
-    else open_out "GL_preview.ml", open_out "GL_stubs_preview.c"
-  in
+  let ml_out, c_out = open_out "GL.ml", open_out "GL_stubs.c" in
   try
     let raw_enums_by_name, raw_commands_by_name, features = Registry.load "gl.xml" in
     let api, version = GLES2_API, "2.0" in

@@ -1,5 +1,4 @@
 (executable
  (name            generator)
  (public_name     gl-ocaml-generator)
- (promote         (until-clean) (into ..))
  (libraries       xmlm))

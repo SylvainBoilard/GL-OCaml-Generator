@@ -1,5 +1,1 @@
 _build/
-gl-ocaml.install
-generator.exe
-GL_preview.ml
-GL_stubs_preview.c

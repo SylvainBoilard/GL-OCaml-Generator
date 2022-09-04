@@ -1,3 +1,15 @@
+(data_only_dirs gl.xml.patches OpenGL-Registry)
+
+(rule
+ (target   gl.xml)
+ (deps
+  (:orig    OpenGL-Registry/xml/gl.xml)
+  (:patches (glob_files gl.xml.patches/*.patch)))
+ (action
+  (progn
+   (copy %{orig} %{target})
+   (run git apply %{patches}))))
+
 (rule
  (targets  GL.ml GL_stubs.c)
  (deps     (:gen src/generator.exe) gl.xml)
