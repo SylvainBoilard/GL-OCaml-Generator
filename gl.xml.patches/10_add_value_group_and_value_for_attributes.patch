@@ -19,8 +19,8 @@
              <proto>void <name>glTexParameteri</name></proto>
              <param group="TextureTarget"><ptype>GLenum</ptype> <name>target</name></param>
              <param group="TextureParameterName"><ptype>GLenum</ptype> <name>pname</name></param>
--            <param group="CheckedInt32"><ptype>GLint</ptype> <name>param</name></param>
-+            <param group="CheckedInt32" value_for="pname"><ptype>GLint</ptype> <name>param</name></param>
+-            <param kind="CheckedInt32"><ptype>GLint</ptype> <name>param</name></param>
++            <param kind="CheckedInt32" value_for="pname"><ptype>GLint</ptype> <name>param</name></param>
              <glx type="render" opcode="107"/>
          </command>
          <command>

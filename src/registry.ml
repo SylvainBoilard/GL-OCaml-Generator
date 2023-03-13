@@ -12,6 +12,7 @@ type param = {
     gl_type: string;
     gl_group: string;
     gl_class: string;
+    gl_kind: string;
     length: string;
     length2: string;
     value_for: string;
@@ -127,11 +128,15 @@ let load filename =
   in
   let read_param attrs =
     let gl_group, gl_class = match attrs_assoc_opt "group" attrs, attrs_assoc_opt "class" attrs with
-      | Some "Boolean", None -> "", ""
+      (* Although the parameters expecting values from the {Shader,Program}BinaryFormat
+         groups are of type GLenum, no enums are actually defined to be in these groups.
+         Turning those two groups into classes has the effect of making related values be
+         of an abstract type in the context of this binding and allows actually using them. *)
       | Some "ShaderBinaryFormat", None -> "", "shader_binary_format"
       | Some "ProgramBinaryFormat", None -> "", "program_binary_format"
       | g, p -> Option.(value g ~default:"", fold ~none:"" ~some:(String.map (function ' ' -> '_' | c -> c)) p)
     in
+    let gl_kind = Option.value (attrs_assoc_opt "kind" attrs) ~default:"" in
     let length = Option.value (attrs_assoc_opt "len" attrs) ~default:"" in
     let length2 = Option.value (attrs_assoc_opt "len2" attrs) ~default:"" in
     let value_for = Option.value (attrs_assoc_opt "value_for" attrs) ~default:"" in
@@ -146,7 +151,10 @@ let load filename =
          if gl_class <> "" && not (List.exists (String.contains_string gl_type) ["GLuint"; "GLsync"; "GLenum"; "const void *"]) then
            Printf.eprintf "Found parameter \"%s\" with non-empty class \"%s\" and unexpected type \"%s\".\n%!"
              pname gl_class gl_type;
-         { pname; gl_type; gl_group; gl_class; length; length2; value_for }
+         if List.(length (filter ((<>) "") [gl_group; gl_class; gl_kind])) > 1 then
+           Printf.eprintf "Found parameter \"%s\" with more than one non-empty attribute among group, class and kind (\"%s\", \"%s\", \"%s\").\n%!"
+             pname gl_group gl_class gl_kind;
+         { pname; gl_type; gl_group; gl_class; gl_kind; length; length2; value_for }
       | `Data str when is_name && pname = "" -> aux depth gl_type str true
       | `Data str when is_name ->
          Printf.eprintf "Found parameter with several names (current: \"%s\", new: \"%s\"); keeping current name.\n%!" pname str;
@@ -294,8 +302,9 @@ let load filename =
   in
   let rec registry_scope () = match Xmlm.input xml_input with
     | `El_start ((_, "comment"), _)
-    | `El_start ((_, "extensions"), _)
-    | `El_start ((_, "types"), _) -> drop (); registry_scope ()
+    | `El_start ((_, "types"), _)
+    | `El_start ((_, "kinds"), _)
+    | `El_start ((_, "extensions"), _) -> drop (); registry_scope ()
     | `El_start ((_, "commands"), _) -> commands_scope (); registry_scope ()
     | `El_start ((_, "enums"), attrs) ->
        enums_scope (attrs_assoc_opt "group" attrs <> Some "SpecialNumbers");
