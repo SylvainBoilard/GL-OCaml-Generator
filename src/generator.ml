@@ -197,7 +197,7 @@ static size_t find_enum_offset(const GLenum gl_enums[], size_t length, GLenum gl
         if (gl_enums[mean] < gl_enum)
             min = mean + 1;
         else
-            max = mean + 1;
+            max = mean;
     }
     return min;
 }
