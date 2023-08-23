@@ -11,53 +11,10 @@ let get_gl_include_file_name api version = match api, version with
   | GLES2_API, "3.2" -> "GLES3/gl32.h"
   | _ -> failwith "get_gl_include_file_name"
 
-type caml_type =
-  | Unit
-  | Int
-  | Bool
-  | Float
-  | String
-  | Int64
-  | Type of string
-  | Enum of string
-  | List of caml_type
-  | Array of caml_type
-  | Bigarray of string * string
-  | Unimplemented
-
 let is_caml_type_block = function
+  | Type "pointer" -> true
   | Unit | Int | Bool | Type _ | Enum _ | Unimplemented -> false
   | _ -> true
-
-let caml_type_of_param param =
-  match param.gl_type with
-  | _ when param.gl_class = "pointer" -> Type param.gl_class
-  | _ when param.gl_class <> "" && String.ends_with ~suffix:"*" param.gl_type && param.length <> "1" -> Array (Type param.gl_class)
-  | _ when param.gl_class <> "" -> Type param.gl_class
-  | "void" -> Unit
-  | "GLenum" -> Enum param.gl_group
-  | "GLenum *" when param.length = "1" -> Enum param.gl_group
-  | "const GLenum *" -> Array (Enum param.gl_group)
-  | "GLboolean" -> Bool
-  | "GLboolean *" when param.length = "1" -> Bool
-  | "GLboolean *" -> Array Bool
-  | "GLchar *" | "const GLchar *" | "const GLubyte *" -> String
-  | "const GLchar *const*" -> Array (Bigarray ("char", "int8_unsigned_elt"))
-  | "GLfloat" | "GLdouble" -> Float
-  | "GLfloat *" when param.length = "1" -> Float
-  | "GLfloat *" -> Array Float
-  | "const GLfloat *" -> Bigarray ("float", "float32_elt")
-  | "GLint" | "GLuint" | "GLsizei" | "GLintptr" | "GLsizeiptr" -> Int
-  | "GLuint64" -> Int64
-  | "GLint *" | "GLuint *" | "GLsizei *" when param.length = "1" -> Int
-  | "GLint *" | "GLuint *" | "GLsizei *" -> Array Int
-  | "const GLint *" when param.pname = "length" -> Array Int (* FIXME: ugly kludge to make glShaderSource work. *)
-  | "const GLint *" | "const GLuint *" -> Bigarray ("int32", "int32_elt")
-  | "const GLsizei *" -> Bigarray ("nativeint", "nativeint_elt")
-  | "const void *" -> Bigarray ("'a", "'b")
-  | "GLbitfield" when param.gl_group = "" -> List Int
-  | "GLbitfield" -> List (Enum param.gl_group)
-  | _ -> Unimplemented
 
 let rec string_of_caml_type = function
   | Unit -> "unit"
@@ -96,7 +53,9 @@ let filter_by_feature enums_by_name commands_by_name features =
   let accessible_groups =
     Hashtbl.fold (fun _ command acc ->
         List.fold_left (fun acc param ->
-            if List.mem param.gl_group acc then acc else param.gl_group :: acc
+            match param.caml_type with
+            | Enum e | Array (Enum e) | List (Enum e) when not (List.mem e acc) -> e :: acc
+            | _ -> acc
           ) acc (command.proto :: command.params)
       ) filtered_commands_by_name []
     |> Hashtbl.fold (fun _ enum acc ->
@@ -148,14 +107,14 @@ let emit_c_header c_out api version =
 
 " (string_of_api api) version (get_gl_include_file_name api version)
 
-let emit_ml_types ml_out buffer classes enums_sorted_by_value =
+let emit_ml_types ml_out buffer types enums_sorted_by_value =
   Buffer.clear buffer;
   bprintf buffer "type ('a, 'b) pointer =
   | Memory of ('a, 'b, c_layout) Genarray.t
   | Offset of int
 
 ";
-  List.iter (bprintf buffer "type %s [@@immediate]\n") classes;
+  List.iter (bprintf buffer "type %s [@@immediate]\n") types;
   bprintf buffer "\ntype 'k enum =\n";
   List.iter (fun enum ->
       let variant_type = sprintf "[<`%s]" (String.concat "|`" enum.groups) in
@@ -219,17 +178,18 @@ let emit_ml_function
     | [] -> "unit"
     | _ ->
        List.map (fun param ->
-           let ml_type = caml_type_of_param param in
-           if ml_type = Unimplemented then
+           if param.caml_type = Unimplemented then
              eprintf "No OCaml replacement for parameter \"%s\" of type \"%s\" in command %s.\n%!"
                param.pname param.gl_type command.proto.pname;
-           (* FIXME: naively emitting 'a will not work if a function has
-              several parameters with different "value_for" attributes. *)
            if param.value_for <> ""
+           (* FIXME: if a function has several parameters with different "value_for"
+              attributes, we need to emit 'a, then 'b, then 'c and so on. *)
            then sprintf "%s:'a" (replace_if_reserved_caml_word param.pname)
            else if List.exists (fun param' -> param.pname = param'.value_for) explicit_input_parameters
-           then sprintf "%s:([`%s] * 'a) enum" (replace_if_reserved_caml_word param.pname) param.gl_group
-           else sprintf "%s:%s" (replace_if_reserved_caml_word param.pname) (string_of_caml_type ml_type)
+           then (
+             let[@warning "-8"] Enum gl_group = param.caml_type in
+             sprintf "%s:([`%s] * 'a) enum" (replace_if_reserved_caml_word param.pname) gl_group
+           ) else sprintf "%s:%s" (replace_if_reserved_caml_word param.pname) (string_of_caml_type param.caml_type)
          ) explicit_input_parameters
        |> String.concat " -> "
   in
@@ -237,11 +197,10 @@ let emit_ml_function
     | [] -> "unit"
     | _ ->
        List.map (fun param ->
-           let ml_type = caml_type_of_param param in
-           if ml_type = Unimplemented then
+           if param.caml_type = Unimplemented then
              eprintf "No OCaml replacement for output \"%s\" of type \"%s\" in command %s.\n%!"
                param.pname param.gl_type command.proto.pname;
-           string_of_caml_type ml_type
+           string_of_caml_type param.caml_type
          ) all_explicit_outputs
        |> String.concat " * "
   in
@@ -286,7 +245,7 @@ let emit_c_function
     if needs_block_allocation then
       failwith "block allocation unimplemented";
     List.iter (fun param ->
-        match caml_type_of_param param with
+        match param.caml_type with
         | Array ml_type ->
            let gl_type =
              let open String in
@@ -328,18 +287,18 @@ let emit_c_function
     let call_params =
       List.map (fun param ->
           if List.memq param implicit_input_parameters then
-            match caml_type_of_param param with
+            match param.caml_type with
             | Array _ -> sprintf "%s_array" (replace_if_reserved_c_word param.pname)
             | _ ->
                let param = List.find (fun p -> p.length = param.pname) explicit_input_parameters in
                let pname = replace_if_reserved_c_word param.pname in
-               match caml_type_of_param param with
+               match param.caml_type with
                | Array _ -> sprintf "%s_length" pname
                | Bigarray _ -> sprintf "caml_ba_byte_size(Caml_ba_array_val(%s))" pname
                | _ -> "NULL"
           else
             let pname = replace_if_reserved_c_word param.pname in
-            match caml_type_of_param param with
+            match param.caml_type with
             | Type "pointer" -> sprintf "(Tag_val(%s) == 0 ? Caml_ba_data_val(Field(%s, 0)) : (void*)(intnat)Int_val(Field(%s, 0)))" pname pname pname
             | _ when param.value_for <> "" ->
                (* TODO: properly figure out the type of the value before using it.
@@ -360,7 +319,7 @@ let emit_c_function
       |> String.concat ", "
     in
     bprintf buffer "%s);\n" call_params;
-    match caml_type_of_param command.proto with
+    match command.proto.caml_type with
     | Int | Type _ -> bprintf buffer "    return Val_int(result);\n"
     | Bool -> bprintf buffer "    return Val_bool(result);\n"
     | Enum _ -> bprintf buffer "    return Val_int(find_enum_offset(gl_enums, sizeof(gl_enums) / sizeof(*gl_enums), result));\n"
@@ -409,7 +368,7 @@ let emit_functions ml_out c_out buffer commands_by_name =
          let needs_byte_version = List.compare_length_with explicit_input_parameters 5 > 0 in
          let needs_block_allocation =
            List.compare_length_with all_explicit_outputs 1 > 0
-           || List.exists (fun param -> is_caml_type_block (caml_type_of_param param)) all_explicit_outputs
+           || List.exists (fun param -> is_caml_type_block param.caml_type) all_explicit_outputs
          in
          emit_ml_function ml_out buffer command explicit_input_parameters
            all_explicit_outputs needs_byte_version needs_block_allocation;
@@ -429,10 +388,12 @@ let () =
   let api, version = GLES2_API, "2.0" in
   let features = List.filter (fun f -> f.api = api && f.version <= version) features in
   let enums_by_name, commands_by_name = filter_by_feature raw_enums_by_name raw_commands_by_name features in
-  let classes =
+  let types =
     Hashtbl.fold (fun _ command acc ->
         List.fold_left (fun acc param ->
-            if param.gl_class = "" || param.gl_class = "pointer" || List.mem param.gl_class acc then acc else param.gl_class :: acc
+            match param.caml_type with
+            | Type t when t <> "pointer" && not (List.mem t acc) -> t :: acc
+            | _ -> acc
           ) acc (command.proto :: command.params)
       ) commands_by_name []
   in
@@ -466,7 +427,7 @@ let () =
       |> List.of_seq
       |> List.sort (fun e1 e2 -> String.compare e1.value e2.value)
     in
-    emit_ml_types ml_out buffer classes enums_sorted_by_value;
+    emit_ml_types ml_out buffer types enums_sorted_by_value;
     emit_c_glenums_translation_table c_out buffer enums_sorted_by_value
   in
   Buffer.reset buffer;

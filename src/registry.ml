@@ -7,16 +7,58 @@ type enum = {
     value_group: string;
   }
 
+type caml_type =
+  | Unit
+  | Int
+  | Bool
+  | Float
+  | String
+  | Int64
+  | Type of string
+  | Enum of string
+  | List of caml_type
+  | Array of caml_type
+  | Bigarray of string * string
+  | Unimplemented
+
 type param = {
     pname: string;
     gl_type: string;
-    gl_group: string;
-    gl_class: string;
-    gl_kind: string;
+    caml_type: caml_type;
     length: string;
     length2: string;
     value_for: string;
   }
+
+let caml_type_of_param pname gl_type gl_group gl_class length =
+  match gl_type with
+  | _ when gl_class = Some "pointer" -> Type "pointer"
+  | _ when gl_class <> None && String.ends_with ~suffix:"*" gl_type && length <> "1" -> Array (Type (Option.get gl_class))
+  | _ when gl_class <> None -> Type (Option.get gl_class)
+  | "void" -> Unit
+  | "GLenum" when gl_group <> None -> Enum (Option.get gl_group)
+  | "GLenum *" when gl_group <> None && length = "1" -> Enum (Option.get gl_group)
+  | "const GLenum *" when gl_group <> None -> Array (Enum (Option.get gl_group))
+  | "GLboolean" -> Bool
+  | "GLboolean *" when length = "1" -> Bool
+  | "GLboolean *" -> Array Bool
+  | "GLchar *" | "const GLchar *" | "const GLubyte *" -> String
+  | "const GLchar *const*" -> Array (Bigarray ("char", "int8_unsigned_elt"))
+  | "GLfloat" | "GLdouble" -> Float
+  | "GLfloat *" when length = "1" -> Float
+  | "GLfloat *" -> Array Float
+  | "const GLfloat *" -> Bigarray ("float", "float32_elt")
+  | "GLint" | "GLuint" | "GLsizei" | "GLintptr" | "GLsizeiptr" -> Int
+  | "GLuint64" -> Int64
+  | "GLint *" | "GLuint *" | "GLsizei *" when length = "1" -> Int
+  | "GLint *" | "GLuint *" | "GLsizei *" -> Array Int
+  | "const GLint *" when pname = "length" -> Array Int (* FIXME: ugly kludge to make glShaderSource work. *)
+  | "const GLint *" | "const GLuint *" -> Bigarray ("int32", "int32_elt")
+  | "const GLsizei *" -> Bigarray ("nativeint", "nativeint_elt")
+  | "const void *" -> Bigarray ("'a", "'b")
+  | "GLbitfield" when gl_group <> None -> List (Enum (Option.get gl_group))
+  | "GLbitfield" -> List Int
+  | _ -> Unimplemented
 
 let null_param : param = Obj.magic 0
 
@@ -132,35 +174,39 @@ let load filename =
          groups are of type GLenum, no enums are actually defined to be in these groups.
          Turning those two groups into classes has the effect of making related values be
          of an abstract type in the context of this binding and allows actually using them. *)
-      | Some "ShaderBinaryFormat", None -> "", "shader_binary_format"
-      | Some "ProgramBinaryFormat", None -> "", "program_binary_format"
-      | g, p -> Option.(value g ~default:"", fold ~none:"" ~some:(String.map (function ' ' -> '_' | c -> c)) p)
+      | Some "ShaderBinaryFormat", None -> None, Some "shader_binary_format"
+      | Some "ProgramBinaryFormat", None -> None, Some "program_binary_format"
+      | g, c -> g, Option.map (String.map (function ' ' -> '_' | c -> c)) c
     in
-    let gl_kind = Option.value (attrs_assoc_opt "kind" attrs) ~default:"" in
+    let gl_kind = attrs_assoc_opt "kind" attrs in
     let length = Option.value (attrs_assoc_opt "len" attrs) ~default:"" in
     let length2 = Option.value (attrs_assoc_opt "len2" attrs) ~default:"" in
     let value_for = Option.value (attrs_assoc_opt "value_for" attrs) ~default:"" in
-    let rec aux depth gl_type pname is_name = match Xmlm.input xml_input with
+    let rec aux depth gl_type pname data_is_name = match Xmlm.input xml_input with
       | `El_start ((_, "name"), _) -> aux (depth + 1) gl_type pname true
       | `El_start ((_, "ptype"), _) -> aux (depth + 1) gl_type pname false
       | `El_start ((_, name), _) ->
          Printf.eprintf "Don’t know what to do with element %s at param scope.\n%!" name;
-         drop (); aux depth gl_type pname is_name
+         drop (); aux depth gl_type pname data_is_name
       | `El_end when depth > 1 -> aux (depth - 1) gl_type pname false
       | `El_end ->
-         if gl_class <> "" && not (List.exists (String.contains_string gl_type) ["GLuint"; "GLsync"; "GLenum"; "const void *"]) then
+         if gl_class <> None && not (Array.exists (String.contains_string gl_type) [|"GLuint"; "GLsync"; "GLenum"; "const void *"|]) then
            Printf.eprintf "Found parameter \"%s\" with non-empty class \"%s\" and unexpected type \"%s\".\n%!"
-             pname gl_class gl_type;
-         if List.(length (filter ((<>) "") [gl_group; gl_class; gl_kind])) > 1 then
-           Printf.eprintf "Found parameter \"%s\" with more than one non-empty attribute among group, class and kind (\"%s\", \"%s\", \"%s\").\n%!"
-             pname gl_group gl_class gl_kind;
-         { pname; gl_type; gl_group; gl_class; gl_kind; length; length2; value_for }
-      | `Data str when is_name && pname = "" -> aux depth gl_type str true
-      | `Data str when is_name ->
+             pname (Option.get gl_class) gl_type;
+         if Array.fold_left (fun c o -> if o = None then c else c + 1) 0 [|gl_group; gl_class; gl_kind|] > 1 then
+           [ "group", gl_group; "class", gl_class; "kind", gl_kind ]
+           |> List.filter_map (fun (n, o) -> Option.map (fun o -> Printf.sprintf "%s: \"%s\"" n o) o)
+           |> String.concat ", "
+           |> Printf.eprintf "Found parameter \"%s\" with more than one attribute among group, class or kind (%s).\n%!" pname;
+         let caml_type = caml_type_of_param pname gl_type gl_group gl_class length in
+         { pname; gl_type; caml_type; length; length2; value_for }
+      | `Data str when data_is_name && pname = "" -> aux depth gl_type str true
+      | `Data str when data_is_name ->
          Printf.eprintf "Found parameter with several names (current: \"%s\", new: \"%s\"); keeping current name.\n%!" pname str;
-         aux depth gl_type pname is_name
-      | `Data str -> aux depth (if gl_type = "" then str else Printf.sprintf "%s %s" gl_type str) pname false
-      | `Dtd _ -> aux depth gl_type pname is_name
+         aux depth gl_type pname data_is_name
+      | `Data str when gl_type = "" -> aux depth str pname false
+      | `Data str -> aux depth (Printf.sprintf "%s %s" gl_type str) pname false
+      | `Dtd _ -> aux depth gl_type pname data_is_name
     in
     aux 1 "" "" false
   in
