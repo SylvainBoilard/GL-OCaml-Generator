@@ -36,8 +36,8 @@ let caml_type_of_param pname gl_type gl_group gl_class length =
   | _ when gl_class <> None && String.ends_with ~suffix:"*" gl_type && length <> "1" -> Array (Type (Option.get gl_class))
   | _ when gl_class <> None -> Type (Option.get gl_class)
   | "void" -> Unit
-  | "GLenum" when gl_group <> None -> Enum (Option.get gl_group)
-  | "GLenum *" when gl_group <> None && length = "1" -> Enum (Option.get gl_group)
+  | "GLenum" | "GLint" when gl_group <> None -> Enum (Option.get gl_group)
+  | "GLenum *" | "GLint *" when gl_group <> None && length = "1" -> Enum (Option.get gl_group)
   | "const GLenum *" when gl_group <> None -> Array (Enum (Option.get gl_group))
   | "GLboolean" -> Bool
   | "GLboolean *" when length = "1" -> Bool
