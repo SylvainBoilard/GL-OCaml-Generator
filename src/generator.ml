@@ -434,4 +434,5 @@ let () =
   emit_c_static_functions c_out buffer;
   emit_functions ml_out c_out buffer commands_by_name;
   close_out ml_out;
-  close_out c_out
+  close_out c_out;
+  eprintf "Generated in %.6f seconds (CPU time).\n%!" (Sys.time ())
