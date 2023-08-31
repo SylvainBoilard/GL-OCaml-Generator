@@ -4,7 +4,7 @@ type enum = {
     ename: string;
     value: string;
     groups: string list;
-    value_group: string;
+    value_group: string option;
   }
 
 type caml_type =
@@ -25,32 +25,32 @@ type param = {
     pname: string;
     gl_type: string;
     caml_type: caml_type;
-    length: string;
-    length2: string;
-    value_for: string;
+    length: string option;
+    length2: string option;
+    value_for: string option;
   }
 
 let caml_type_of_param pname gl_type gl_group gl_class length =
   match gl_type with
   | _ when gl_class = Some "pointer" -> Type "pointer"
-  | _ when gl_class <> None && String.ends_with ~suffix:"*" gl_type && length <> "1" -> Array (Type (Option.get gl_class))
+  | _ when gl_class <> None && String.ends_with ~suffix:"*" gl_type && length <> Some "1" -> Array (Type (Option.get gl_class))
   | _ when gl_class <> None -> Type (Option.get gl_class)
   | "void" -> Unit
   | "GLenum" | "GLint" when gl_group <> None -> Enum (Option.get gl_group)
-  | "GLenum *" | "GLint *" when gl_group <> None && length = "1" -> Enum (Option.get gl_group)
+  | "GLenum *" | "GLint *" when gl_group <> None && length = Some "1" -> Enum (Option.get gl_group)
   | "const GLenum *" when gl_group <> None -> Array (Enum (Option.get gl_group))
   | "GLboolean" -> Bool
-  | "GLboolean *" when length = "1" -> Bool
+  | "GLboolean *" when length = Some "1" -> Bool
   | "GLboolean *" -> Array Bool
   | "GLchar *" | "const GLchar *" | "const GLubyte *" -> String
   | "const GLchar *const*" -> Array (Bigarray ("char", "int8_unsigned_elt"))
   | "GLfloat" | "GLdouble" -> Float
-  | "GLfloat *" when length = "1" -> Float
+  | "GLfloat *" when length = Some "1" -> Float
   | "GLfloat *" -> Array Float
   | "const GLfloat *" -> Bigarray ("float", "float32_elt")
   | "GLint" | "GLuint" | "GLsizei" | "GLintptr" | "GLsizeiptr" -> Int
   | "GLuint64" -> Int64
-  | "GLint *" | "GLuint *" | "GLsizei *" when length = "1" -> Int
+  | "GLint *" | "GLuint *" | "GLsizei *" when length = Some "1" -> Int
   | "GLint *" | "GLuint *" | "GLsizei *" -> Array Int
   | "const GLint *" when pname = "length" -> Array Int (* FIXME: ugly kludge to make glShaderSource work. *)
   | "const GLint *" | "const GLuint *" -> Bigarray ("int32", "int32_elt")
@@ -155,7 +155,7 @@ let load filename =
       let ename = attrs_assoc "name" attrs in
       let value = attrs_assoc "value" attrs in
       let groups = Option.fold ~none:[] ~some:(String.split_on_char ',') (attrs_assoc_opt "group" attrs) in
-      let value_group = Option.value (attrs_assoc_opt "value_group" attrs) ~default:"" in
+      let value_group = attrs_assoc_opt "value_group" attrs in
       { ename; value; groups; value_group }
     with
     | Not_found ->
@@ -179,9 +179,9 @@ let load filename =
       | g, c -> g, Option.map (String.map (function ' ' -> '_' | c -> c)) c
     in
     let gl_kind = attrs_assoc_opt "kind" attrs in
-    let length = Option.value (attrs_assoc_opt "len" attrs) ~default:"" in
-    let length2 = Option.value (attrs_assoc_opt "len2" attrs) ~default:"" in
-    let value_for = Option.value (attrs_assoc_opt "value_for" attrs) ~default:"" in
+    let length = attrs_assoc_opt "len" attrs in
+    let length2 = attrs_assoc_opt "len2" attrs in
+    let value_for = attrs_assoc_opt "value_for" attrs in
     let rec aux depth gl_type pname data_is_name = match Xmlm.input xml_input with
       | `El_start ((_, "name"), _) -> aux (depth + 1) gl_type pname true
       | `El_start ((_, "ptype"), _) -> aux (depth + 1) gl_type pname false

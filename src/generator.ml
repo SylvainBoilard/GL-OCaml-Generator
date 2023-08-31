@@ -59,7 +59,9 @@ let filter_by_feature enums_by_name commands_by_name features =
           ) acc (command.proto :: command.params)
       ) filtered_commands_by_name []
     |> Hashtbl.fold (fun _ enum acc ->
-           if enum.value_group = "" || List.mem enum.value_group acc then acc else enum.value_group :: acc
+           match enum.value_group with
+           | Some value_group when not (List.mem value_group acc) -> value_group :: acc
+           | _ -> acc
          ) filtered_enums_by_name
   in
   Hashtbl.filter_map_inplace (fun _ enum ->
@@ -118,9 +120,9 @@ let emit_ml_types ml_out buffer types enums_sorted_by_value =
   bprintf buffer "\ntype 'k enum =\n";
   List.iter (fun enum ->
       let variant_type = sprintf "[<`%s]" (String.concat "|`" enum.groups) in
-      if enum.value_group = ""
-      then bprintf buffer "  | %s : %s enum\n" (to_pascal_case enum.ename) variant_type
-      else bprintf buffer "  | %s : (%s * [`%s] enum) enum\n" (to_pascal_case enum.ename) variant_type enum.value_group
+      match enum.value_group with
+      | None -> bprintf buffer "  | %s : %s enum\n" (to_pascal_case enum.ename) variant_type
+      | Some value_group -> bprintf buffer "  | %s : (%s * [`%s] enum) enum\n" (to_pascal_case enum.ename) variant_type value_group
     ) enums_sorted_by_value;
   bprintf buffer "\n";
   Buffer.output_buffer ml_out buffer
@@ -181,11 +183,11 @@ let emit_ml_function
            if param.caml_type = Unimplemented then
              eprintf "No OCaml replacement for parameter \"%s\" of type \"%s\" in command %s.\n%!"
                param.pname param.gl_type command.proto.pname;
-           if param.value_for <> ""
+           if param.value_for <> None
            (* FIXME: if a function has several parameters with different "value_for"
               attributes, we need to emit 'a, then 'b, then 'c and so on. *)
            then sprintf "%s:'a" (replace_if_reserved_caml_word param.pname)
-           else if List.exists (fun param' -> param.pname = param'.value_for) explicit_input_parameters
+           else if List.exists (fun other -> other.value_for = Some param.pname) explicit_input_parameters
            then (
              let[@warning "-8"] Enum gl_group = param.caml_type in
              sprintf "%s:([`%s] * 'a) enum" (replace_if_reserved_caml_word param.pname) gl_group
@@ -255,16 +257,16 @@ let emit_c_function
              then sub param.gl_type 0 (length param.gl_type - 6)
              else "void"
            in
-           let len2_of = List.find_opt (fun p -> p.length2 = param.pname) input_parameters in
+           let len2_of = List.find_opt (fun other -> other.length2 = Some param.pname) input_parameters in
            let pname = replace_if_reserved_c_word param.pname in
            let length_pname = match len2_of with
              | None -> pname
-             | Some param' -> replace_if_reserved_c_word param'.pname
+             | Some other -> replace_if_reserved_c_word other.pname
            in
            let element = match ml_type, len2_of with
-             | Int, Some param' ->
-                let pname' = replace_if_reserved_c_word param'.pname in
-                sprintf "caml_ba_byte_size(Caml_ba_array_val(Field(%s, i)))" pname'
+             | Int, Some other ->
+                let other_pname = replace_if_reserved_c_word other.pname in
+                sprintf "caml_ba_byte_size(Caml_ba_array_val(Field(%s, i)))" other_pname
              | (Int | Type _), _ -> sprintf "Int_val(Field(%s, i))" pname
              | Bool, _ -> sprintf "Bool_val(Field(%s, i))" pname
              | Float, _ -> sprintf "Double_val(Field(%s, i))" pname
@@ -290,7 +292,7 @@ let emit_c_function
             match param.caml_type with
             | Array _ -> sprintf "%s_array" (replace_if_reserved_c_word param.pname)
             | _ ->
-               let param = List.find (fun p -> p.length = param.pname) explicit_input_parameters in
+               let param = List.find (fun other -> other.length = Some param.pname) explicit_input_parameters in
                let pname = replace_if_reserved_c_word param.pname in
                match param.caml_type with
                | Array _ -> sprintf "%s_length" pname
@@ -300,7 +302,7 @@ let emit_c_function
             let pname = replace_if_reserved_c_word param.pname in
             match param.caml_type with
             | Type "pointer" -> sprintf "(Tag_val(%s) == 0 ? Caml_ba_data_val(Field(%s, 0)) : (void*)(intnat)Int_val(Field(%s, 0)))" pname pname pname
-            | _ when param.value_for <> "" ->
+            | _ when param.value_for <> None ->
                (* TODO: properly figure out the type of the value before using it.
                   At the moment this is used for glTexParameteri, which is the only function definition
                   where we added a "value_for" attribute to a parameter, and it only takes enums. *)
@@ -351,13 +353,13 @@ let emit_functions ml_out c_out buffer commands_by_name =
              ) command.params
          in
          let explicit_input_parameters, implicit_input_parameters =
-           List.partition (fun p ->
-               List.for_all (fun p' -> p.pname <> p'.length && p.pname <> p'.length2) input_parameters
+           List.partition (fun param ->
+               List.for_all (fun other -> other.length <> Some param.pname && other.length2 <> Some param.pname) input_parameters
              ) input_parameters
          in
          let explicit_output_parameters, _implicit_output_parameters =
-           List.partition (fun p ->
-               List.for_all (fun p' -> p.pname <> p'.length) output_parameters
+           List.partition (fun param ->
+               List.for_all (fun other -> other.length <> Some param.pname) output_parameters
              ) output_parameters
          in
          let all_explicit_outputs =
