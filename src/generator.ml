@@ -31,6 +31,61 @@ let rec string_of_caml_type = function
   | Bigarray (t, elt) -> sprintf "(%s, %s, c_layout) Genarray.t" t elt
   | Unimplemented -> "'z"
 
+let c_value_of_caml_value value = function
+  | Unit -> failwith "c_value_of_caml_value: unit value"
+  | Type "pointer" -> sprintf "Pointer_val(%s)" value
+  | Int | Type _ -> sprintf "Int_val(%s)" value
+  | Bool -> sprintf "Bool_val(%s)" value
+  | Float -> sprintf "Double_val(%s)" value
+  | String -> sprintf "String_val(%s)" value
+  | Int64 -> sprintf "Int64_val(%s)" value
+  | Enum _ -> sprintf "gl_enums[Int_val(%s)]" value
+  | List _ -> sprintf "glbitfield_of_enum_list(gl_enums, %s)" value
+  | Array _ -> sprintf "%s_array" value
+  | Bigarray _ -> sprintf "Caml_ba_data_val(%s)" value
+  | Unimplemented -> failwith "c_value_of_caml_value: unimplemented value"
+
+let caml_value_of_c_value value = function
+  | Unit -> "Val_unit"
+  | Type "pointer" -> failwith "caml_value_of_c_value: pointer value"
+  | Int | Type _ -> sprintf "Val_int(%s)" value
+  | Bool -> sprintf "Val_bool(%s)" value
+  | Float -> sprintf "caml_copy_double(%s)" value
+  | String -> sprintf "caml_copy_string(%s)" value
+  | Int64 -> sprintf "caml_copy_int64(%s)" value
+  | Enum _ -> sprintf "Val_int(find_enum_offset(gl_enums, sizeof(gl_enums) / sizeof(*gl_enums), %s))" value
+  | List _ -> failwith "caml_value_of_c_value: list value"
+  | Array _ -> sprintf "%s_array" value
+  | Bigarray _ -> failwith "caml_value_of_c_value: bigarray value"
+  | Unimplemented -> failwith "caml_value_of_c_value: unimplemented value"
+
+let c_array_of_ml_array param input_parameters buffer =
+  let gl_type =
+    let open String in
+    if starts_with ~prefix:"const " param.gl_type && ends_with ~suffix:" *" param.gl_type
+    then sub param.gl_type 6 (length param.gl_type - 8)
+    else if ends_with ~suffix:"const*" param.gl_type
+    then sub param.gl_type 0 (length param.gl_type - 6)
+    else failwith "c_array_of_ml_array: could not deduce element type"
+  in
+  let len2_of = List.find_opt (fun other -> other.length2 = Some param.pname) input_parameters in
+  let pname = replace_if_reserved_c_word param.pname in
+  let length_pname = match len2_of with
+    | None -> pname
+    | Some other -> replace_if_reserved_c_word other.pname
+  in
+  let element = match param.caml_type, len2_of with
+    | _, Some other ->
+       let other_pname = replace_if_reserved_c_word other.pname in
+       sprintf "caml_ba_byte_size(Caml_ba_array_val(Field(%s, i)))" other_pname
+    | Array inner_caml_type, None -> c_value_of_caml_value (sprintf "Field(%s, i)" pname) inner_caml_type
+    | _ -> failwith "c_array_of_ml_array: not an array"
+  in
+  bprintf buffer "    const GLsizei %s_length = Wosize_val(%s);\n" pname length_pname;
+  bprintf buffer "    %s %s_array[%s_length];\n" gl_type pname pname;
+  bprintf buffer "    for (int i = 0; i < %s_length; ++i)\n" pname;
+  bprintf buffer "        %s_array[i] = %s;\n" pname element
+
 let filter_by_feature enums_by_name commands_by_name features =
   let filtered_enums_by_name = Hashtbl.create 4096 in
   let filtered_commands_by_name = Hashtbl.create 4096 in
@@ -101,11 +156,13 @@ let emit_c_header c_out api version =
 #include <caml/fail.h>
 #include <caml/bigarray.h>
 
-#undef string_length
-
 #define CAMLvoid CAMLunused_start value unit CAMLunused_end
 
-#define Val_none Val_int(0)
+#ifndef Val_none
+# define Val_none Val_int(0)
+#endif
+
+#define Pointer_val(v) (Tag_val(v) == 0 ? Caml_ba_data_val(Field((v), 0)) : (void*)(intnat)Int_val(Field((v), 0)))
 
 " (string_of_api api) version (get_gl_include_file_name api version)
 
@@ -248,39 +305,7 @@ let emit_c_function
       failwith "block allocation unimplemented";
     List.iter (fun param ->
         match param.caml_type with
-        | Array ml_type ->
-           let gl_type =
-             let open String in
-             if starts_with ~prefix:"const " param.gl_type && ends_with ~suffix:" *" param.gl_type
-             then sub param.gl_type 6 (length param.gl_type - 8)
-             else if ends_with ~suffix:"const*" param.gl_type
-             then sub param.gl_type 0 (length param.gl_type - 6)
-             else "void"
-           in
-           let len2_of = List.find_opt (fun other -> other.length2 = Some param.pname) input_parameters in
-           let pname = replace_if_reserved_c_word param.pname in
-           let length_pname = match len2_of with
-             | None -> pname
-             | Some other -> replace_if_reserved_c_word other.pname
-           in
-           let element = match ml_type, len2_of with
-             | Int, Some other ->
-                let other_pname = replace_if_reserved_c_word other.pname in
-                sprintf "caml_ba_byte_size(Caml_ba_array_val(Field(%s, i)))" other_pname
-             | (Int | Type _), _ -> sprintf "Int_val(Field(%s, i))" pname
-             | Bool, _ -> sprintf "Bool_val(Field(%s, i))" pname
-             | Float, _ -> sprintf "Double_val(Field(%s, i))" pname
-             | String, _ -> sprintf "String_val(Field(%s, i))" pname
-             | Int64, _ -> sprintf "Int64_val(Field(%s, i))" pname
-             | Enum _, _ -> sprintf "gl_enums[Int_val(Field(%s, i))]" pname
-             | List _, _ -> sprintf "glbitfield_of_enum_list(gl_enums, Field(%s, i))" pname
-             | Bigarray _, _ -> sprintf "Caml_ba_data_val(Field(%s, i))" pname
-             | _ -> "NULL"
-           in
-           bprintf buffer "    const GLsizei %s_length = Wosize_val(%s);\n" pname length_pname;
-           bprintf buffer "    %s %s_array[%s_length];\n" gl_type pname pname;
-           bprintf buffer "    for (int i = 0; i < %s_length; ++i)\n" pname;
-           bprintf buffer "        %s_array[i] = %s;\n" pname element
+        | Array _ -> c_array_of_ml_array param input_parameters buffer
         | _ -> ()
       ) input_parameters;
     if explicit_output_parameters == all_explicit_outputs
@@ -288,44 +313,29 @@ let emit_c_function
     else bprintf buffer "    %s result = %s(" command.proto.gl_type command.proto.pname;
     let call_params =
       List.map (fun param ->
+          let pname = replace_if_reserved_c_word param.pname in
           if List.memq param implicit_input_parameters then
             match param.caml_type with
-            | Array _ -> sprintf "%s_array" (replace_if_reserved_c_word param.pname)
+            | Array _ -> c_value_of_caml_value pname param.caml_type
             | _ ->
-               let param = List.find (fun other -> other.length = Some param.pname) explicit_input_parameters in
-               let pname = replace_if_reserved_c_word param.pname in
-               match param.caml_type with
-               | Array _ -> sprintf "%s_length" pname
-               | Bigarray _ -> sprintf "caml_ba_byte_size(Caml_ba_array_val(%s))" pname
-               | _ -> "NULL"
+               let other_param = List.find (fun other -> other.length = Some param.pname) explicit_input_parameters in
+               let other_pname = replace_if_reserved_c_word other_param.pname in
+               match other_param.caml_type with
+               | Array _ -> sprintf "%s_length" other_pname
+               | Bigarray _ -> sprintf "caml_ba_byte_size(Caml_ba_array_val(%s))" other_pname
+               | _ -> failwith "could not deduce implicit parameter"
+          else if param.value_for <> None then
+            (* TODO: properly figure out the type of the value before using it.
+               At the moment this is used for glTexParameteri, which is the only function definition
+               where we added a "value_for" attribute to a parameter, and it only takes enums. *)
+            c_value_of_caml_value pname (Enum "#DUMMY#")
           else
-            let pname = replace_if_reserved_c_word param.pname in
-            match param.caml_type with
-            | Type "pointer" -> sprintf "(Tag_val(%s) == 0 ? Caml_ba_data_val(Field(%s, 0)) : (void*)(intnat)Int_val(Field(%s, 0)))" pname pname pname
-            | _ when param.value_for <> None ->
-               (* TODO: properly figure out the type of the value before using it.
-                  At the moment this is used for glTexParameteri, which is the only function definition
-                  where we added a "value_for" attribute to a parameter, and it only takes enums. *)
-               sprintf "gl_enums[Int_val(%s)]" pname
-            | Int | Type _ -> sprintf "Int_val(%s)" pname
-            | Bool -> sprintf "Bool_val(%s)" pname
-            | Float -> sprintf "Double_val(%s)" pname
-            | String -> sprintf "String_val(%s)" pname
-            | Int64 -> sprintf "Int64_val(%s)" pname
-            | Enum _ -> sprintf "gl_enums[Int_val(%s)]" pname
-            | List _ -> sprintf "glbitfield_of_enum_list(gl_enums, %s)" pname
-            | Array _ -> sprintf "%s_array" pname
-            | Bigarray _ -> sprintf "Caml_ba_data_val(%s)" pname
-            | _ -> "NULL"
+            c_value_of_caml_value pname param.caml_type
         ) command.params
       |> String.concat ", "
     in
     bprintf buffer "%s);\n" call_params;
-    match command.proto.caml_type with
-    | Int | Type _ -> bprintf buffer "    return Val_int(result);\n"
-    | Bool -> bprintf buffer "    return Val_bool(result);\n"
-    | Enum _ -> bprintf buffer "    return Val_int(find_enum_offset(gl_enums, sizeof(gl_enums) / sizeof(*gl_enums), result));\n"
-    | _ -> bprintf buffer "    return Val_unit;\n"
+    bprintf buffer "    return %s;\n" (caml_value_of_c_value "result" command.proto.caml_type)
   with Failure error ->
     Buffer.clear buffer;
     List.iter (fun param -> bprintf buffer "    (void)%s;\n" (replace_if_reserved_c_word param.pname)) explicit_input_parameters;
