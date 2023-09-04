@@ -1,51 +1,14 @@
 open Registry
 
-let print_enums enums_by_name =
-  Hashtbl.iter (fun _ enum ->
-      Printf.eprintf "Enum %s\n  Value: %s\n" enum.ename enum.value;
-      if enum.groups <> [] then (
-        Printf.eprintf "  Groups:\n";
-        List.iter (fun group -> Printf.eprintf "    %s\n" group) enum.groups
-      )
-    ) enums_by_name
-
 let print_groups enums_by_group =
   Hashtbl.iter (fun group enums ->
       Printf.eprintf "Group %s\n  Enums:\n" group;
       List.iter (fun enum -> Printf.eprintf "    %s\n" enum.ename) enums
     ) enums_by_group
 
-let print_commands commands_by_name =
-  Hashtbl.iter (fun _ command ->
-      Printf.eprintf "Command %s:\n" command.proto.pname;
-      if command.alias <> "" then Printf.eprintf "  Alias of %s\n" command.alias;
-      Printf.eprintf "  Return type: \"%s\"" command.proto.gl_type;
-      if command.proto.gl_group <> "" || command.proto.gl_class <> "" then (
-        let prefix = ref " (" in
-        if command.proto.gl_group <> "" then (
-          Printf.eprintf "%sgroup: \"%s\"" !prefix command.proto.gl_group;
-          prefix := "; "
-        );
-        if command.proto.gl_class <> "" then (
-          Printf.eprintf "%sclass: \"%s\"" !prefix command.proto.gl_class;
-          prefix := "; "
-        );
-        Printf.eprintf ")"
-      );
-      Printf.eprintf "\n  Parameters:\n";
-      if command.params <> [] then
-        List.iter (fun param ->
-            Printf.eprintf "    %s (type: \"%s\"" param.pname param.gl_type;
-            if param.gl_group <> "" then Printf.eprintf "; group: \"%s\"" param.gl_group;
-            if param.gl_class <> "" then Printf.eprintf "; class: \"%s\"" param.gl_class;
-            if param.length <> "" then Printf.eprintf "; length: \"%s\"" param.length;
-            Printf.eprintf ")\n"
-          ) command.params
-    ) commands_by_name
-
 let print_features features =
   List.iter (fun feature ->
-      Printf.eprintf "%s api, version %s\n" (string_of_api feature.api) feature.version;
+      Printf.eprintf "%s api, version %s, %s profile\n" (string_of_api feature.api) feature.version (string_of_profile feature.profile);
       if feature.required_enums <> [] then (
         Printf.eprintf "  Required enums:\n";
         List.iter (Printf.eprintf "    %s\n") feature.required_enums
@@ -121,25 +84,23 @@ let print_features_short features =
     ) features
 
 let print_empty_groups commands_by_name enums_by_group =
-  Printf.eprintf "Groups with no enum:\n  From parameters with no class:\n";
+  Printf.eprintf "Groups with no enum:\n";
   Hashtbl.fold (fun _ command acc ->
       List.fold_left (fun acc param ->
-          if param.gl_group = "" || param.gl_class <> "" || Hashtbl.mem enums_by_group param.gl_group || List.mem param.gl_group acc
-          then acc
-          else param.gl_group :: acc
-        ) acc (command.proto :: command.params)
-    ) commands_by_name []
-  |> List.iter (Printf.eprintf "    %s\n");
-  Printf.eprintf "  From parameters with a class:\n";
-  Hashtbl.fold (fun _ command acc ->
-      List.fold_left (fun acc param ->
-          if param.gl_group = "" || param.gl_class = "" || Hashtbl.mem enums_by_group param.gl_group || List.mem param.gl_group acc
-          then acc
-          else param.gl_group :: acc
+          match param.caml_type with
+          | Enum group when not (Hashtbl.mem enums_by_group group || List.mem group acc) ->
+             group :: acc
+          | _ -> acc
         ) acc (command.proto :: command.params)
     ) commands_by_name []
   |> List.iter (Printf.eprintf "    %s\n")
 
-let print_classes classes =
-  Printf.eprintf "Classes:\n";
-  List.iter (Printf.eprintf "  \"%s\"\n") classes
+let emit_C_prototype_comment command ml_out c_out =
+  let gl_params =
+    List.map (fun param ->
+        Printf.sprintf "%s %s" param.gl_type param.pname;
+      ) command.params
+    |> String.concat ", "
+  in
+  Printf.fprintf ml_out "(* %s %s(%s) *)\n" command.proto.gl_type command.proto.pname gl_params;
+  Printf.fprintf c_out "/* %s %s(%s) */\n" command.proto.gl_type command.proto.pname gl_params

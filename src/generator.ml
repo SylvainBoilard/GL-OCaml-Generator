@@ -353,16 +353,7 @@ let emit_functions ml_out c_out buffer commands_by_name =
            List.compare_length_with all_explicit_outputs 1 > 0
            || List.exists (fun param -> is_caml_type_block param.caml_type) all_explicit_outputs
          in
-         (* DEBUG: add a copy of the C prototypes in the generated files. *)
-         let gl_params =
-           List.map (fun param ->
-               sprintf "%s %s" param.gl_type param.pname;
-             ) command.params
-           |> String.concat ", "
-         in
-         fprintf ml_out "(* %s %s(%s) *)\n" command.proto.gl_type command.proto.pname gl_params;
-         fprintf c_out "/* %s %s(%s) */\n" command.proto.gl_type command.proto.pname gl_params;
-         (* /DEBUG *)
+         Debug.emit_C_prototype_comment command ml_out c_out;
          let override_ml_filename = sprintf "overrides/%s.ml" command.proto.pname in
          if Sys.file_exists override_ml_filename then
            output_file ml_out override_ml_filename
@@ -401,12 +392,6 @@ let () =
   (* DEBUG *)
 (*
   Debug.print_features_short features;
-  eprintf "\n%!";
-  Debug.print_enums enums_by_name;
-  eprintf "\n%!";
-  Debug.print_commands commands_by_name;
-  eprintf "\n%!";
-  Debug.print_classes classes;
   eprintf "\n%!";
   let enums_by_group = hash_enums_by_group enums_by_name in
   Debug.print_groups enums_by_group;
