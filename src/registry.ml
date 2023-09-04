@@ -26,7 +26,6 @@ type param = {
     gl_type: string;
     caml_type: caml_type;
     length: string option;
-    length2: string option;
     value_for: string option;
   }
 
@@ -180,7 +179,6 @@ let load filename =
     in
     let gl_kind = attrs_assoc_opt "kind" attrs in
     let length = attrs_assoc_opt "len" attrs in
-    let length2 = attrs_assoc_opt "len2" attrs in
     let value_for = attrs_assoc_opt "value_for" attrs in
     let rec aux depth gl_type pname data_is_name = match Xmlm.input xml_input with
       | `El_start ((_, "name"), _) -> aux (depth + 1) gl_type pname true
@@ -199,7 +197,7 @@ let load filename =
            |> String.concat ", "
            |> Printf.eprintf "Found parameter \"%s\" with more than one attribute among group, class or kind (%s).\n%!" pname;
          let caml_type = caml_type_of_param pname gl_type gl_group gl_class length in
-         { pname; gl_type; caml_type; length; length2; value_for }
+         { pname; gl_type; caml_type; length; value_for }
       | `Data str when data_is_name && pname = "" -> aux depth gl_type str true
       | `Data str when data_is_name ->
          Printf.eprintf "Found parameter with several names (current: \"%s\", new: \"%s\"); keeping current name.\n%!" pname str;

@@ -60,3 +60,8 @@ let replace_if_reserved_c_word = function
 
 let remove_gl_prefix str =
   String.(uncapitalize_ascii (sub str 2 (length str - 2)))
+
+let output_file out_channel filename =
+  let in_channel = open_in filename in
+  output_string out_channel (really_input_string in_channel (in_channel_length in_channel));
+  close_in_noerr in_channel

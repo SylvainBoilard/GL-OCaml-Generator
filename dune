@@ -1,4 +1,4 @@
-(data_only_dirs gl.xml.patches OpenGL-Registry)
+(data_only_dirs gl.xml.patches OpenGL-Registry overrides)
 
 (rule
  (target   gl.xml)
@@ -12,7 +12,10 @@
 
 (rule
  (targets  GL.ml GL_stubs.c)
- (deps     (:gen src/generator.exe) gl.xml)
+ (deps
+  (:gen src/generator.exe)
+  (glob_files overrides/*.{ml,c})
+  gl.xml)
  (action   (run %{gen})))
 
 (library

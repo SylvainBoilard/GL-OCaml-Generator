@@ -59,7 +59,7 @@ let caml_value_of_c_value value = function
   | Bigarray _ -> failwith "caml_value_of_c_value: bigarray value"
   | Unimplemented -> failwith "caml_value_of_c_value: unimplemented value"
 
-let c_array_of_ml_array param input_parameters buffer =
+let c_array_of_ml_array param buffer =
   let gl_type =
     let open String in
     if starts_with ~prefix:"const " param.gl_type && ends_with ~suffix:" *" param.gl_type
@@ -68,20 +68,12 @@ let c_array_of_ml_array param input_parameters buffer =
     then sub param.gl_type 0 (length param.gl_type - 6)
     else failwith "c_array_of_ml_array: could not deduce element type"
   in
-  let len2_of = List.find_opt (fun other -> other.length2 = Some param.pname) input_parameters in
   let pname = replace_if_reserved_c_word param.pname in
-  let length_pname = match len2_of with
-    | None -> pname
-    | Some other -> replace_if_reserved_c_word other.pname
-  in
-  let element = match param.caml_type, len2_of with
-    | _, Some other ->
-       let other_pname = replace_if_reserved_c_word other.pname in
-       sprintf "caml_ba_byte_size(Caml_ba_array_val(Field(%s, i)))" other_pname
-    | Array inner_caml_type, None -> c_value_of_caml_value (sprintf "Field(%s, i)" pname) inner_caml_type
+  let element = match param.caml_type with
+    | Array inner_caml_type -> c_value_of_caml_value (sprintf "Field(%s, i)" pname) inner_caml_type
     | _ -> failwith "c_array_of_ml_array: not an array"
   in
-  bprintf buffer "    const GLsizei %s_length = Wosize_val(%s);\n" pname length_pname;
+  bprintf buffer "    const GLsizei %s_length = Wosize_val(%s);\n" pname pname;
   bprintf buffer "    %s %s_array[%s_length];\n" gl_type pname pname;
   bprintf buffer "    for (int i = 0; i < %s_length; ++i)\n" pname;
   bprintf buffer "        %s_array[i] = %s;\n" pname element
@@ -191,8 +183,7 @@ let emit_c_glenums_translation_table c_out buffer enums_sorted_by_value =
   bprintf buffer "};\n\n";
   Buffer.output_buffer c_out buffer
 
-let emit_c_static_functions c_out buffer =
-  Buffer.clear buffer;
+let emit_c_static_functions c_out =
   fprintf c_out "static size_t find_enum_offset(const GLenum gl_enums[], size_t length, GLenum gl_enum)
 {
     size_t min = 0, max = length;
@@ -221,18 +212,8 @@ static GLbitfield glbitfield_of_enum_list(const GLenum gl_enums[], value list)
 "
 
 let emit_ml_function
-      ml_out buffer command explicit_input_parameters all_explicit_outputs
+      ml_out command explicit_input_parameters all_explicit_outputs
       needs_byte_version needs_block_allocation =
-  Buffer.clear buffer;
-  (* DEBUG: add a copy of the C prototypes in the generated files. *)
-  let gl_params =
-    List.map (fun param ->
-        sprintf "%s %s" param.gl_type param.pname;
-      ) command.params
-    |> String.concat ", "
-  in
-  bprintf buffer "(* %s %s(%s) *)\n" command.proto.gl_type command.proto.pname gl_params;
-  (* /DEBUG *)
   let function_type = match explicit_input_parameters with
     | [] -> "unit"
     | _ ->
@@ -271,24 +252,14 @@ let emit_ml_function
     | true -> ""
     | false -> " [@@noalloc]"
   in
-  bprintf buffer "external %s : %s -> %s = %s%s\n"
-    (remove_gl_prefix command.proto.pname) function_type result_type stub_names attributes;
-  Buffer.output_buffer ml_out buffer
+  fprintf ml_out "external %s : %s -> %s = %s%s\n"
+    (remove_gl_prefix command.proto.pname) function_type result_type stub_names attributes
 
 let emit_c_function
       c_out buffer command input_parameters explicit_input_parameters
       implicit_input_parameters explicit_output_parameters all_explicit_outputs
       needs_byte_version needs_block_allocation =
   Buffer.clear buffer;
-  (* DEBUG: add a copy of the C prototypes in the generated files. *)
-  let gl_params =
-    List.map (fun param ->
-        sprintf "%s %s" param.gl_type param.pname;
-      ) command.params
-    |> String.concat ", "
-  in
-  bprintf buffer "/* %s %s(%s) */\n" command.proto.gl_type command.proto.pname gl_params;
-  (* /DEBUG *)
   let stub_params = match input_parameters with
     | [] -> "CAMLvoid"
     | _ ->
@@ -305,7 +276,7 @@ let emit_c_function
       failwith "block allocation unimplemented";
     List.iter (fun param ->
         match param.caml_type with
-        | Array _ -> c_array_of_ml_array param input_parameters buffer
+        | Array _ -> c_array_of_ml_array param buffer
         | _ -> ()
       ) input_parameters;
     if explicit_output_parameters == all_explicit_outputs
@@ -364,7 +335,7 @@ let emit_functions ml_out c_out buffer commands_by_name =
          in
          let explicit_input_parameters, implicit_input_parameters =
            List.partition (fun param ->
-               List.for_all (fun other -> other.length <> Some param.pname && other.length2 <> Some param.pname) input_parameters
+               List.for_all (fun other -> other.length <> Some param.pname) input_parameters
              ) input_parameters
          in
          let explicit_output_parameters, _implicit_output_parameters =
@@ -382,11 +353,29 @@ let emit_functions ml_out c_out buffer commands_by_name =
            List.compare_length_with all_explicit_outputs 1 > 0
            || List.exists (fun param -> is_caml_type_block param.caml_type) all_explicit_outputs
          in
-         emit_ml_function ml_out buffer command explicit_input_parameters
-           all_explicit_outputs needs_byte_version needs_block_allocation;
-         emit_c_function c_out buffer command input_parameters explicit_input_parameters
-           implicit_input_parameters explicit_output_parameters all_explicit_outputs
-           needs_byte_version needs_block_allocation
+         (* DEBUG: add a copy of the C prototypes in the generated files. *)
+         let gl_params =
+           List.map (fun param ->
+               sprintf "%s %s" param.gl_type param.pname;
+             ) command.params
+           |> String.concat ", "
+         in
+         fprintf ml_out "(* %s %s(%s) *)\n" command.proto.gl_type command.proto.pname gl_params;
+         fprintf c_out "/* %s %s(%s) */\n" command.proto.gl_type command.proto.pname gl_params;
+         (* /DEBUG *)
+         let override_ml_filename = sprintf "overrides/%s.ml" command.proto.pname in
+         if Sys.file_exists override_ml_filename then
+           output_file ml_out override_ml_filename
+         else
+           emit_ml_function ml_out command explicit_input_parameters
+             all_explicit_outputs needs_byte_version needs_block_allocation;
+         let override_c_filename = sprintf "overrides/%s.c" command.proto.pname in
+         if Sys.file_exists override_c_filename then
+           output_file c_out override_c_filename
+         else
+           emit_c_function c_out buffer command input_parameters explicit_input_parameters
+             implicit_input_parameters explicit_output_parameters all_explicit_outputs
+             needs_byte_version needs_block_allocation
        )
 
 let () =
@@ -443,7 +432,7 @@ let () =
     emit_c_glenums_translation_table c_out buffer enums_sorted_by_value
   in
   Buffer.reset buffer;
-  emit_c_static_functions c_out buffer;
+  emit_c_static_functions c_out;
   emit_functions ml_out c_out buffer commands_by_name;
   close_out ml_out;
   close_out c_out;
