@@ -46,7 +46,7 @@ let c_value_of_caml_value value = function
   | Unimplemented -> failwith "c_value_of_caml_value: unimplemented value"
 
 let caml_value_of_c_value value = function
-  | Unit -> "Val_unit"
+  | Unit -> failwith "caml_value_of_c_value: unit value"
   | Type "pointer" -> failwith "caml_value_of_c_value: pointer value"
   | Int | Type _ -> sprintf "Val_int(%s)" value
   | Bool -> sprintf "Val_bool(%s)" value
@@ -55,7 +55,7 @@ let caml_value_of_c_value value = function
   | Int64 -> sprintf "caml_copy_int64(%s)" value
   | Enum _ -> sprintf "Val_int(find_enum_offset(gl_enums, sizeof(gl_enums) / sizeof(*gl_enums), %s))" value
   | List _ -> failwith "caml_value_of_c_value: list value"
-  | Array _ -> sprintf "%s_array" value
+  | Array _ -> sprintf "caml_%s_array" value
   | Bigarray _ -> failwith "caml_value_of_c_value: bigarray value"
   | Unimplemented -> failwith "caml_value_of_c_value: unimplemented value"
 
@@ -70,6 +70,7 @@ let c_array_of_caml_array param buffer =
   in
   let pname = replace_if_reserved_c_word param.pname in
   let element = match param.caml_type with
+    | Array Float -> sprintf "Double_array_field(%s, i)" pname
     | Array inner_caml_type -> c_value_of_caml_value (sprintf "Field(%s, i)" pname) inner_caml_type
     | _ -> failwith "c_array_of_caml_array: not an array"
   in
@@ -77,6 +78,51 @@ let c_array_of_caml_array param buffer =
   bprintf buffer "    %s %s_array[%s_length];\n" gl_type pname pname;
   bprintf buffer "    for (int i = 0; i < %s_length; ++i)\n" pname;
   bprintf buffer "        %s_array[i] = %s;\n" pname element
+
+let caml_array_of_c_array param buffer =
+  let pname = replace_if_reserved_c_word param.pname in
+  let inner_caml_type = match param.caml_type with
+    | Array t -> t
+    | _ -> failwith "caml_array_of_c_array: not an array"
+  in
+  bprintf buffer "    CAMLlocal1(caml_%s_array);\n" pname;
+  if inner_caml_type = Float
+  then bprintf buffer "    caml_%s_array = caml_alloc_float_array(%s_length);\n" pname pname
+  else bprintf buffer "    caml_%s_array = caml_alloc_small(0, %s_length);\n" pname pname;
+  bprintf buffer "    for (int i = 0; i < %s_length; ++i)\n" pname;
+  if inner_caml_type = Float then
+    bprintf buffer "        Store_double_array_field(caml_%s_array, i, %s_array[i]);\n" pname pname
+  else
+    let element = caml_value_of_c_value (sprintf "%s_array[i]" pname) inner_caml_type in
+    bprintf buffer "        Field(caml_%s_array, i) = %s;\n" pname element
+
+let prepare_c_output param buffer =
+  let pname = replace_if_reserved_c_word param.pname in
+  let gl_type =
+    let open String in
+    if ends_with ~suffix:" *" param.gl_type
+    then sub param.gl_type 0 (length param.gl_type - 2)
+    else failwith "prepare_c_output: could not deduce element type"
+  in
+  let get_length () = match param.length with
+    | Some length when String.starts_with ~prefix:"COMPSIZE" length ->
+       failwith "prepare_c_output: COMPSIZE unimplemented"
+    | Some length when int_of_string_opt length = None ->
+       c_value_of_caml_value length Int
+    | Some length -> length
+    | None -> failwith "prepare_c_output: array or string has no length"
+  in
+  match param.caml_type with
+  | Array _ ->
+     let length = get_length () in
+     bprintf buffer "    const GLsizei %s_length = %s;\n" pname length;
+     bprintf buffer "    %s %s_array[%s_length];\n" gl_type pname pname
+  | String ->
+     let length = get_length () in
+     bprintf buffer "    const GLsizei %s_length = %s;\n" pname length;
+     bprintf buffer "    CAMLlocal1(%s_string);\n" pname;
+     bprintf buffer "    %s_string = caml_alloc_string(%s_length);\n" pname pname
+  | _ -> bprintf buffer "    %s %s;\n" gl_type pname
 
 let filter_by_feature enums_by_name commands_by_name features =
   let filtered_enums_by_name = Hashtbl.create 4096 in
@@ -258,7 +304,7 @@ let emit_caml_function
 
 let emit_c_function
       c_out buffer command
-      explicit_input_parameters
+      explicit_input_parameters output_parameters all_explicit_outputs
       needs_byte_version needs_block_allocation =
   let stub_params = match explicit_input_parameters with
     | [] -> "CAMLvoid"
@@ -272,37 +318,76 @@ let emit_c_function
   Buffer.clear buffer;
   begin try
     if needs_block_allocation then
-      failwith "block allocation unimplemented";
+      bprintf buffer "    CAMLparam0();\n";
     List.iter (fun param ->
         match param.caml_type with
         | Array _ -> c_array_of_caml_array param buffer
         | _ -> ()
       ) explicit_input_parameters;
+    List.iter (fun param -> prepare_c_output param buffer) output_parameters;
     if command.proto.caml_type = Unit
     then bprintf buffer "    %s(" command.proto.pname
     else bprintf buffer "    %s result = %s(" command.proto.gl_type command.proto.pname;
     let call_params =
       List.map (fun param ->
           let pname = replace_if_reserved_c_word param.pname in
-          match List.find_opt (fun other -> other.length = Some param.pname) command.params with
-          | Some other_param ->
-             let other_pname = replace_if_reserved_c_word other_param.pname in
-             begin match other_param.caml_type with
-             | Array _ -> sprintf "%s_length" other_pname
-             | Bigarray _ -> sprintf "caml_ba_byte_size(Caml_ba_array_val(%s))" other_pname
-             | _ -> failwith (sprintf "input parameter %s is length of dimension-less parameter %s" pname other_pname)
-             end
-          | None when param.value_for <> None ->
-             (* TODO: properly figure out the type of the value before using it.
-                At the moment this is used for glTexParameteri, which is the only function definition
-                where we added a "value_for" attribute to a parameter, and it only takes enums. *)
-             c_value_of_caml_value pname (Enum "#DUMMY#")
-          | None -> c_value_of_caml_value pname param.caml_type
+          if List.memq param output_parameters then
+            match param.caml_type with
+            | Array _ -> pname ^ "_array"
+            | String -> sprintf "Bytes_val(%s_string)" pname
+            | _ -> "&" ^ pname
+          else
+            match List.find_opt (fun other -> other.length = Some param.pname) command.params with
+            | Some other_param ->
+               let other_pname = replace_if_reserved_c_word other_param.pname in
+               begin match other_param.caml_type with
+               | Array _ | String -> sprintf "%s_length" other_pname
+               | Bigarray _ -> sprintf "caml_ba_byte_size(Caml_ba_array_val(%s))" other_pname
+               | _ -> failwith (sprintf "input parameter %s is length of dimension-less parameter %s" pname other_pname)
+               end
+            | None when param.value_for <> None ->
+               (* TODO: properly figure out the type of the value before using it.
+                  At the moment this is used for glTexParameteri, which is the only function definition
+                  where we added a "value_for" attribute to a parameter, and it only takes enums. *)
+               c_value_of_caml_value pname (Enum "#DUMMY#")
+            | None -> c_value_of_caml_value pname param.caml_type
         ) command.params
       |> String.concat ", "
     in
     bprintf buffer "%s);\n" call_params;
-    bprintf buffer "    return %s;\n" (caml_value_of_c_value "result" command.proto.caml_type)
+    List.iter (fun param ->
+        match param.caml_type with
+        | Array _ -> caml_array_of_c_array param buffer
+        | _ -> ()
+      ) all_explicit_outputs;
+    let return_value = match all_explicit_outputs with
+      | [] -> "Val_unit"
+      | [ param ] when param == command.proto -> caml_value_of_c_value "result" param.caml_type
+      | [ param ] ->
+         let pname = replace_if_reserved_c_word param.pname in
+         if param.caml_type = String
+         then pname ^ "_string"
+         else caml_value_of_c_value pname param.caml_type
+      | _ ->
+         bprintf buffer "    CAMLlocal1(result_tuple);\n";
+         bprintf buffer "    result_tuple = caml_alloc_small(0, %d);\n" (List.length all_explicit_outputs);
+         List.iteri (fun i param ->
+             let value =
+               if param == command.proto then
+                 caml_value_of_c_value "result" param.caml_type
+               else
+                 let pname = replace_if_reserved_c_word param.pname in
+                 if param.caml_type = String
+                 then pname ^ "_string"
+                 else caml_value_of_c_value pname param.caml_type
+             in
+             bprintf buffer "    Field(result_tuple, %d) = %s;\n" i value
+           ) all_explicit_outputs;
+         "result_tuple"
+    in
+    if needs_block_allocation
+    then bprintf buffer "    CAMLreturn(%s);\n" return_value
+    else bprintf buffer "    return %s;\n" return_value
   with Failure error ->
     Buffer.clear buffer;
     List.iter (fun param -> bprintf buffer "    (void)%s;\n" (replace_if_reserved_c_word param.pname)) explicit_input_parameters;
@@ -362,7 +447,7 @@ let emit_functions caml_out c_out buffer commands_by_name =
            output_file c_out override_c_filename
          else
            emit_c_function c_out buffer command
-             explicit_input_parameters
+             explicit_input_parameters output_parameters all_explicit_outputs
              needs_byte_version needs_block_allocation
        )
 

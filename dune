@@ -26,5 +26,5 @@
  (foreign_stubs
   (language       c)
   (names          GL_stubs)
-  (flags          -Wall -Wextra))
+  (flags          -Wall -Wextra -Wno-pointer-sign))
  (c_library_flags (-lGL)))
