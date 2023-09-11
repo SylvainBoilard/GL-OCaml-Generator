@@ -259,7 +259,6 @@ let emit_c_function
       c_out buffer command input_parameters explicit_input_parameters
       implicit_input_parameters explicit_output_parameters all_explicit_outputs
       needs_byte_version needs_block_allocation =
-  Buffer.clear buffer;
   let stub_params = match input_parameters with
     | [] -> "CAMLvoid"
     | _ ->
@@ -268,8 +267,7 @@ let emit_c_function
          ) explicit_input_parameters
        |> String.concat ", "
   in
-  bprintf buffer "CAMLprim value caml_%s(%s)\n{\n" command.proto.pname stub_params;
-  Buffer.output_buffer c_out buffer;
+  fprintf c_out "CAMLprim value caml_%s(%s)\n{\n" command.proto.pname stub_params;
   Buffer.clear buffer;
   begin try
     if needs_block_allocation then
