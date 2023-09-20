@@ -212,7 +212,8 @@ static GLbitfield glbitfield_of_enum_list(const GLenum gl_enums[], value list)
 "
 
 let emit_caml_function
-      caml_out command explicit_input_parameters all_explicit_outputs
+      caml_out command
+      explicit_input_parameters all_explicit_outputs
       needs_byte_version needs_block_allocation =
   let function_type = match explicit_input_parameters with
     | [] -> "unit"
@@ -256,10 +257,10 @@ let emit_caml_function
     (remove_gl_prefix command.proto.pname) function_type result_type stub_names attributes
 
 let emit_c_function
-      c_out buffer command input_parameters explicit_input_parameters
-      implicit_input_parameters explicit_output_parameters all_explicit_outputs
+      c_out buffer command
+      explicit_input_parameters
       needs_byte_version needs_block_allocation =
-  let stub_params = match input_parameters with
+  let stub_params = match explicit_input_parameters with
     | [] -> "CAMLvoid"
     | _ ->
        List.map (fun param ->
@@ -276,30 +277,27 @@ let emit_c_function
         match param.caml_type with
         | Array _ -> c_array_of_caml_array param buffer
         | _ -> ()
-      ) input_parameters;
-    if explicit_output_parameters == all_explicit_outputs
+      ) explicit_input_parameters;
+    if command.proto.caml_type = Unit
     then bprintf buffer "    %s(" command.proto.pname
     else bprintf buffer "    %s result = %s(" command.proto.gl_type command.proto.pname;
     let call_params =
       List.map (fun param ->
           let pname = replace_if_reserved_c_word param.pname in
-          if List.memq param implicit_input_parameters then
-            match param.caml_type with
-            | Array _ -> c_value_of_caml_value pname param.caml_type
-            | _ ->
-               let other_param = List.find (fun other -> other.length = Some param.pname) explicit_input_parameters in
-               let other_pname = replace_if_reserved_c_word other_param.pname in
-               match other_param.caml_type with
-               | Array _ -> sprintf "%s_length" other_pname
-               | Bigarray _ -> sprintf "caml_ba_byte_size(Caml_ba_array_val(%s))" other_pname
-               | _ -> failwith "could not deduce implicit parameter"
-          else if param.value_for <> None then
-            (* TODO: properly figure out the type of the value before using it.
-               At the moment this is used for glTexParameteri, which is the only function definition
-               where we added a "value_for" attribute to a parameter, and it only takes enums. *)
-            c_value_of_caml_value pname (Enum "#DUMMY#")
-          else
-            c_value_of_caml_value pname param.caml_type
+          match List.find_opt (fun other -> other.length = Some param.pname) command.params with
+          | Some other_param ->
+             let other_pname = replace_if_reserved_c_word other_param.pname in
+             begin match other_param.caml_type with
+             | Array _ -> sprintf "%s_length" other_pname
+             | Bigarray _ -> sprintf "caml_ba_byte_size(Caml_ba_array_val(%s))" other_pname
+             | _ -> failwith (sprintf "input parameter %s is length of dimension-less parameter %s" pname other_pname)
+             end
+          | None when param.value_for <> None ->
+             (* TODO: properly figure out the type of the value before using it.
+                At the moment this is used for glTexParameteri, which is the only function definition
+                where we added a "value_for" attribute to a parameter, and it only takes enums. *)
+             c_value_of_caml_value pname (Enum "#DUMMY#")
+          | None -> c_value_of_caml_value pname param.caml_type
         ) command.params
       |> String.concat ", "
     in
@@ -331,18 +329,18 @@ let emit_functions caml_out c_out buffer commands_by_name =
                not (String.ends_with ~suffix:"*" param.gl_type) || (String.starts_with ~prefix:"const" param.gl_type)
              ) command.params
          in
-         let explicit_input_parameters, implicit_input_parameters =
-           List.partition (fun param ->
+         let explicit_input_parameters =
+           List.filter (fun param ->
                List.for_all (fun other -> other.length <> Some param.pname) input_parameters
              ) input_parameters
          in
-         let explicit_output_parameters, _implicit_output_parameters =
-           List.partition (fun param ->
+         let explicit_output_parameters =
+           List.filter (fun param ->
                List.for_all (fun other -> other.length <> Some param.pname) output_parameters
              ) output_parameters
          in
          let all_explicit_outputs =
-           if command.proto.gl_type = "void"
+           if command.proto.caml_type = Unit
            then explicit_output_parameters
            else command.proto :: explicit_output_parameters
          in
@@ -356,14 +354,15 @@ let emit_functions caml_out c_out buffer commands_by_name =
          if Sys.file_exists override_caml_filename then
            output_file caml_out override_caml_filename
          else
-           emit_caml_function caml_out command explicit_input_parameters
-             all_explicit_outputs needs_byte_version needs_block_allocation;
+           emit_caml_function caml_out command
+             explicit_input_parameters all_explicit_outputs
+             needs_byte_version needs_block_allocation;
          let override_c_filename = sprintf "overrides/%s.c" command.proto.pname in
          if Sys.file_exists override_c_filename then
            output_file c_out override_c_filename
          else
-           emit_c_function c_out buffer command input_parameters explicit_input_parameters
-             implicit_input_parameters explicit_output_parameters all_explicit_outputs
+           emit_c_function c_out buffer command
+             explicit_input_parameters
              needs_byte_version needs_block_allocation
        )
 
