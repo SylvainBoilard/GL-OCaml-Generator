@@ -40,7 +40,7 @@ let c_value_of_caml_value value = function
   | String -> sprintf "String_val(%s)" value
   | Int64 -> sprintf "Int64_val(%s)" value
   | Enum _ -> sprintf "gl_enums[Int_val(%s)]" value
-  | List _ -> sprintf "glbitfield_of_enum_list(gl_enums, %s)" value
+  | List _ -> sprintf "caml_convert_flag_list(%s, gl_enums)" value
   | Array _ -> sprintf "%s_array" value
   | Bigarray _ -> sprintf "Caml_ba_data_val(%s)" value
   | Unimplemented -> failwith "c_value_of_caml_value: unimplemented value"
@@ -242,17 +242,6 @@ let emit_c_static_functions c_out =
             max = mean;
     }
     return min;
-}
-
-static GLbitfield glbitfield_of_enum_list(const GLenum gl_enums[], value list)
-{
-    GLbitfield ret = 0;
-    while (list != Val_emptylist)
-    {
-        ret |= gl_enums[Int_val(Field(list, 0))];
-        list = Field(list, 1);
-    }
-    return ret;
 }
 
 "
