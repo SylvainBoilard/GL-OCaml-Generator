@@ -96,7 +96,7 @@ let caml_array_of_c_array param buffer =
     let element = caml_value_of_c_value (sprintf "%s_array[i]" pname) inner_caml_type in
     bprintf buffer "        Field(caml_%s_array, i) = %s;\n" pname element
 
-let prepare_c_output param buffer =
+let prepare_c_output param explicit_input_parameters buffer =
   let pname = replace_if_reserved_c_word param.pname in
   let gl_type =
     let open String in
@@ -105,11 +105,13 @@ let prepare_c_output param buffer =
     else failwith "prepare_c_output: could not deduce element type"
   in
   let get_length () = match param.length with
-    | Some length when String.starts_with ~prefix:"COMPSIZE" length ->
-       failwith "prepare_c_output: COMPSIZE unimplemented"
-    | Some length when int_of_string_opt length = None ->
-       c_value_of_caml_value length Int
-    | Some length -> length
+    | Some length ->
+       begin match List.find_opt (fun other_param -> other_param.pname = length) explicit_input_parameters with
+       | Some other_param ->
+          let other_pname = replace_if_reserved_c_word other_param.pname in
+          c_value_of_caml_value other_pname other_param.caml_type
+       | None -> length
+       end
     | None -> failwith "prepare_c_output: array or string has no length"
   in
   match param.caml_type with
@@ -244,6 +246,11 @@ let emit_c_static_functions c_out =
     return min;
 }
 
+static int COMPSIZE()
+{
+    caml_failwith(\"COMPSIZE unimplemented.\");
+}
+
 "
 
 let emit_caml_function
@@ -313,7 +320,7 @@ let emit_c_function
         | Array _ -> c_array_of_caml_array param buffer
         | _ -> ()
       ) explicit_input_parameters;
-    List.iter (fun param -> prepare_c_output param buffer) output_parameters;
+    List.iter (fun param -> prepare_c_output param explicit_input_parameters buffer) output_parameters;
     if command.proto.caml_type = Unit
     then bprintf buffer "    %s(" command.proto.pname
     else bprintf buffer "    %s result = %s(" command.proto.gl_type command.proto.pname;
