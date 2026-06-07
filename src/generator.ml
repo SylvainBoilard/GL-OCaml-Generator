@@ -246,7 +246,7 @@ let emit_c_static_functions c_out =
     return min;
 }
 
-static int COMPSIZE()
+static int COMPSIZE(...)
 {
     caml_failwith(\"COMPSIZE unimplemented.\");
 }
