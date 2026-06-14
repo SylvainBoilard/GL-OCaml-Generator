@@ -1,0 +1,101 @@
+--- a/gl.xml
++++ b/gl.xml
+@@ -3755,82 +3755,82 @@
+         <enum value="0x8824" name="GL_MAX_DRAW_BUFFERS_ATI"/>
+         <enum value="0x8824" name="GL_MAX_DRAW_BUFFERS_EXT"/>
+         <enum value="0x8824" name="GL_MAX_DRAW_BUFFERS_NV"/>
+-        <enum value="0x8825" name="GL_DRAW_BUFFER0"/>
++        <enum value="0x8825" name="GL_DRAW_BUFFER0" group="GetPName"/>
+         <enum value="0x8825" name="GL_DRAW_BUFFER0_ARB"/>
+         <enum value="0x8825" name="GL_DRAW_BUFFER0_ATI"/>
+         <enum value="0x8825" name="GL_DRAW_BUFFER0_EXT"/>
+         <enum value="0x8825" name="GL_DRAW_BUFFER0_NV"/>
+-        <enum value="0x8826" name="GL_DRAW_BUFFER1"/>
++        <enum value="0x8826" name="GL_DRAW_BUFFER1" group="GetPName"/>
+         <enum value="0x8826" name="GL_DRAW_BUFFER1_ARB"/>
+         <enum value="0x8826" name="GL_DRAW_BUFFER1_ATI"/>
+         <enum value="0x8826" name="GL_DRAW_BUFFER1_EXT"/>
+         <enum value="0x8826" name="GL_DRAW_BUFFER1_NV"/>
+-        <enum value="0x8827" name="GL_DRAW_BUFFER2"/>
++        <enum value="0x8827" name="GL_DRAW_BUFFER2" group="GetPName"/>
+         <enum value="0x8827" name="GL_DRAW_BUFFER2_ARB"/>
+         <enum value="0x8827" name="GL_DRAW_BUFFER2_ATI"/>
+         <enum value="0x8827" name="GL_DRAW_BUFFER2_EXT"/>
+         <enum value="0x8827" name="GL_DRAW_BUFFER2_NV"/>
+-        <enum value="0x8828" name="GL_DRAW_BUFFER3"/>
++        <enum value="0x8828" name="GL_DRAW_BUFFER3" group="GetPName"/>
+         <enum value="0x8828" name="GL_DRAW_BUFFER3_ARB"/>
+         <enum value="0x8828" name="GL_DRAW_BUFFER3_ATI"/>
+         <enum value="0x8828" name="GL_DRAW_BUFFER3_EXT"/>
+         <enum value="0x8828" name="GL_DRAW_BUFFER3_NV"/>
+-        <enum value="0x8829" name="GL_DRAW_BUFFER4"/>
++        <enum value="0x8829" name="GL_DRAW_BUFFER4" group="GetPName"/>
+         <enum value="0x8829" name="GL_DRAW_BUFFER4_ARB"/>
+         <enum value="0x8829" name="GL_DRAW_BUFFER4_ATI"/>
+         <enum value="0x8829" name="GL_DRAW_BUFFER4_EXT"/>
+         <enum value="0x8829" name="GL_DRAW_BUFFER4_NV"/>
+-        <enum value="0x882A" name="GL_DRAW_BUFFER5"/>
++        <enum value="0x882A" name="GL_DRAW_BUFFER5" group="GetPName"/>
+         <enum value="0x882A" name="GL_DRAW_BUFFER5_ARB"/>
+         <enum value="0x882A" name="GL_DRAW_BUFFER5_ATI"/>
+         <enum value="0x882A" name="GL_DRAW_BUFFER5_EXT"/>
+         <enum value="0x882A" name="GL_DRAW_BUFFER5_NV"/>
+-        <enum value="0x882B" name="GL_DRAW_BUFFER6"/>
++        <enum value="0x882B" name="GL_DRAW_BUFFER6" group="GetPName"/>
+         <enum value="0x882B" name="GL_DRAW_BUFFER6_ARB"/>
+         <enum value="0x882B" name="GL_DRAW_BUFFER6_ATI"/>
+         <enum value="0x882B" name="GL_DRAW_BUFFER6_EXT"/>
+         <enum value="0x882B" name="GL_DRAW_BUFFER6_NV"/>
+-        <enum value="0x882C" name="GL_DRAW_BUFFER7"/>
++        <enum value="0x882C" name="GL_DRAW_BUFFER7" group="GetPName"/>
+         <enum value="0x882C" name="GL_DRAW_BUFFER7_ARB"/>
+         <enum value="0x882C" name="GL_DRAW_BUFFER7_ATI"/>
+         <enum value="0x882C" name="GL_DRAW_BUFFER7_EXT"/>
+         <enum value="0x882C" name="GL_DRAW_BUFFER7_NV"/>
+-        <enum value="0x882D" name="GL_DRAW_BUFFER8"/>
++        <enum value="0x882D" name="GL_DRAW_BUFFER8" group="GetPName"/>
+         <enum value="0x882D" name="GL_DRAW_BUFFER8_ARB"/>
+         <enum value="0x882D" name="GL_DRAW_BUFFER8_ATI"/>
+         <enum value="0x882D" name="GL_DRAW_BUFFER8_EXT"/>
+         <enum value="0x882D" name="GL_DRAW_BUFFER8_NV"/>
+-        <enum value="0x882E" name="GL_DRAW_BUFFER9"/>
++        <enum value="0x882E" name="GL_DRAW_BUFFER9" group="GetPName"/>
+         <enum value="0x882E" name="GL_DRAW_BUFFER9_ARB"/>
+         <enum value="0x882E" name="GL_DRAW_BUFFER9_ATI"/>
+         <enum value="0x882E" name="GL_DRAW_BUFFER9_EXT"/>
+         <enum value="0x882E" name="GL_DRAW_BUFFER9_NV"/>
+-        <enum value="0x882F" name="GL_DRAW_BUFFER10"/>
++        <enum value="0x882F" name="GL_DRAW_BUFFER10" group="GetPName"/>
+         <enum value="0x882F" name="GL_DRAW_BUFFER10_ARB"/>
+         <enum value="0x882F" name="GL_DRAW_BUFFER10_ATI"/>
+         <enum value="0x882F" name="GL_DRAW_BUFFER10_EXT"/>
+         <enum value="0x882F" name="GL_DRAW_BUFFER10_NV"/>
+-        <enum value="0x8830" name="GL_DRAW_BUFFER11"/>
++        <enum value="0x8830" name="GL_DRAW_BUFFER11" group="GetPName"/>
+         <enum value="0x8830" name="GL_DRAW_BUFFER11_ARB"/>
+         <enum value="0x8830" name="GL_DRAW_BUFFER11_ATI"/>
+         <enum value="0x8830" name="GL_DRAW_BUFFER11_EXT"/>
+         <enum value="0x8830" name="GL_DRAW_BUFFER11_NV"/>
+-        <enum value="0x8831" name="GL_DRAW_BUFFER12"/>
++        <enum value="0x8831" name="GL_DRAW_BUFFER12" group="GetPName"/>
+         <enum value="0x8831" name="GL_DRAW_BUFFER12_ARB"/>
+         <enum value="0x8831" name="GL_DRAW_BUFFER12_ATI"/>
+         <enum value="0x8831" name="GL_DRAW_BUFFER12_EXT"/>
+         <enum value="0x8831" name="GL_DRAW_BUFFER12_NV"/>
+-        <enum value="0x8832" name="GL_DRAW_BUFFER13"/>
++        <enum value="0x8832" name="GL_DRAW_BUFFER13" group="GetPName"/>
+         <enum value="0x8832" name="GL_DRAW_BUFFER13_ARB"/>
+         <enum value="0x8832" name="GL_DRAW_BUFFER13_ATI"/>
+         <enum value="0x8832" name="GL_DRAW_BUFFER13_EXT"/>
+         <enum value="0x8832" name="GL_DRAW_BUFFER13_NV"/>
+-        <enum value="0x8833" name="GL_DRAW_BUFFER14"/>
++        <enum value="0x8833" name="GL_DRAW_BUFFER14" group="GetPName"/>
+         <enum value="0x8833" name="GL_DRAW_BUFFER14_ARB"/>
+         <enum value="0x8833" name="GL_DRAW_BUFFER14_ATI"/>
+         <enum value="0x8833" name="GL_DRAW_BUFFER14_EXT"/>
+         <enum value="0x8833" name="GL_DRAW_BUFFER14_NV"/>
+-        <enum value="0x8834" name="GL_DRAW_BUFFER15"/>
++        <enum value="0x8834" name="GL_DRAW_BUFFER15" group="GetPName"/>
+         <enum value="0x8834" name="GL_DRAW_BUFFER15_ARB"/>
+         <enum value="0x8834" name="GL_DRAW_BUFFER15_ATI"/>
+         <enum value="0x8834" name="GL_DRAW_BUFFER15_EXT"/>
