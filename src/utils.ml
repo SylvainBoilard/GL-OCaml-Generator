@@ -24,9 +24,10 @@ module String =
 
 let to_pascal_case str =
   String.split_on_char '_' str
-  |> List.tl
-  |> List.map String.lowercase_ascii
-  |> List.map String.capitalize_ascii
+  |> List.tl (* Drop GL prefix. *)
+  |> List.map (function
+         | "1D" | "2D" | "3D" as str -> str
+         | str -> String.(capitalize_ascii (lowercase_ascii str)))
   |> String.concat ""
 
 let is_weakly_ordered cmp l =
