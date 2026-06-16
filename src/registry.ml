@@ -29,7 +29,7 @@ type param = {
     value_for: string option;
   }
 
-let caml_type_of_param pname gl_type gl_group gl_class length =
+let caml_type_of_param gl_type gl_group gl_class length =
   match gl_type with
   | _ when gl_class = Some "pointer" -> Type "pointer"
   | _ when gl_class <> None && String.ends_with ~suffix:"*" gl_type && length <> Some "1" -> Array (Type (Option.get gl_class))
@@ -51,7 +51,6 @@ let caml_type_of_param pname gl_type gl_group gl_class length =
   | "GLuint64" -> Int64
   | "GLint *" | "GLuint *" | "GLsizei *" when length = Some "1" -> Int
   | "GLint *" | "GLuint *" | "GLsizei *" -> Array Int
-  | "const GLint *" when pname = "length" -> Array Int (* FIXME: ugly kludge to make glShaderSource work. *)
   | "const GLint *" | "const GLuint *" -> Bigarray ("int32", "int32_elt")
   | "const GLsizei *" -> Bigarray ("nativeint", "nativeint_elt")
   | "const void *" -> Bigarray ("'a", "'b")
@@ -196,7 +195,7 @@ let load filename =
            |> List.filter_map (fun (n, o) -> Option.map (fun o -> Printf.sprintf "%s: \"%s\"" n o) o)
            |> String.concat ", "
            |> Printf.eprintf "Found parameter \"%s\" with more than one attribute among group, class or kind (%s).\n%!" pname;
-         let caml_type = caml_type_of_param pname gl_type gl_group gl_class length in
+         let caml_type = caml_type_of_param gl_type gl_group gl_class length in
          { pname; gl_type; caml_type; length; value_for }
       | `Data str when data_is_name && pname = "" -> aux depth gl_type str true
       | `Data str when data_is_name ->
