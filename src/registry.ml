@@ -5,6 +5,7 @@ type enum = {
     value: string;
     groups: string list;
     value_group: string option;
+    line: int;
   }
 
 type caml_type =
@@ -27,6 +28,7 @@ type param = {
     caml_type: caml_type;
     length: string option;
     value_for: string option;
+    line: int;
   }
 
 let caml_type_of_param gl_type gl_group gl_class length =
@@ -64,6 +66,7 @@ type command = {
     proto: param;
     params: param list;
     alias: string;
+    line: int;
   }
 
 type api = GL_API | GLES1_API | GLES2_API | GLSC2_API
@@ -92,10 +95,10 @@ type feature_list = {
     api: api;
     version: string;
     profile: profile;
-    required_enums: string list;
-    required_commands: string list;
-    removed_enums: string list;
-    removed_commands: string list;
+    required_enums: (string * int) list;
+    required_commands: (string * int) list;
+    removed_enums: (string * int) list;
+    removed_commands: (string * int) list;
   }
 
 let rec attrs_assoc key = function
@@ -139,6 +142,10 @@ let propagate_groups_by_value enums =
 let load filename =
   let opengl_registry_in = open_in filename in
   let xml_input = Xmlm.make_input ~strip:true (`Channel opengl_registry_in) in
+  let warn_at line fmt =
+    Printf.ksprintf (fun s -> Printf.eprintf "gl.xml:%d: %s\n%!" line s) fmt
+  in
+  let warn fmt = warn_at (fst (Xmlm.pos xml_input)) fmt in
   let enums_by_name = Hashtbl.create 4096 in
   let commands_by_name = Hashtbl.create 4096 in
   let features = ref [] in
@@ -148,25 +155,22 @@ let load filename =
     | `Data _ | `Dtd _ -> drop ()
   in
   let read_enum attrs =
+    let line = fst (Xmlm.pos xml_input) in
     drop ();
     try
       let ename = attrs_assoc "name" attrs in
       let value = attrs_assoc "value" attrs in
       let groups = Option.fold ~none:[] ~some:(String.split_on_char ',') (attrs_assoc_opt "group" attrs) in
       let value_group = attrs_assoc_opt "value_group" attrs in
-      { ename; value; groups; value_group }
+      { ename; value; groups; value_group; line }
     with
     | Not_found ->
-       let prefix = ref "" in
-       Printf.eprintf "Found enum with missing name or value (";
-       List.iter (fun ((_, name), value) ->
-           Printf.eprintf "%s%s = \"%s\"" !prefix name value;
-           prefix := ", "
-         ) attrs;
-       Printf.eprintf ")\n%!";
+       warn_at line "Found enum with missing name or value (%s)"
+         (String.concat ", " (List.map (fun ((_, name), value) -> Printf.sprintf "%s = \"%s\"" name value) attrs));
        raise Not_found
   in
   let read_param attrs =
+    let line = fst (Xmlm.pos xml_input) in
     let gl_group, gl_class = match attrs_assoc_opt "group" attrs, attrs_assoc_opt "class" attrs with
       (* Although the parameters expecting values from the {Shader,Program}BinaryFormat
          groups are of type GLenum, no enums are actually defined to be in these groups.
@@ -183,23 +187,23 @@ let load filename =
       | `El_start ((_, "name"), _) -> aux (depth + 1) gl_type pname true
       | `El_start ((_, "ptype"), _) -> aux (depth + 1) gl_type pname false
       | `El_start ((_, name), _) ->
-         Printf.eprintf "Don’t know what to do with element %s at param scope.\n%!" name;
+         warn "Don’t know what to do with element %s at param scope." name;
          drop (); aux depth gl_type pname data_is_name
       | `El_end when depth > 1 -> aux (depth - 1) gl_type pname false
       | `El_end ->
          if gl_class <> None && not (Array.exists (String.contains_string gl_type) [|"GLuint"; "GLsync"; "GLenum"; "const void *"|]) then
-           Printf.eprintf "Found parameter \"%s\" with non-empty class \"%s\" and unexpected type \"%s\".\n%!"
+           warn "Found parameter \"%s\" with non-empty class \"%s\" and unexpected type \"%s\"."
              pname (Option.get gl_class) gl_type;
          if Array.fold_left (fun c o -> if o = None then c else c + 1) 0 [|gl_group; gl_class; gl_kind|] > 1 then
            [ "group", gl_group; "class", gl_class; "kind", gl_kind ]
            |> List.filter_map (fun (n, o) -> Option.map (fun o -> Printf.sprintf "%s: \"%s\"" n o) o)
            |> String.concat ", "
-           |> Printf.eprintf "Found parameter \"%s\" with more than one attribute among group, class or kind (%s).\n%!" pname;
+           |> warn "Found parameter \"%s\" with more than one attribute among group, class or kind (%s)." pname;
          let caml_type = caml_type_of_param gl_type gl_group gl_class length in
-         { pname; gl_type; caml_type; length; value_for }
+         { pname; gl_type; caml_type; length; value_for; line }
       | `Data str when data_is_name && pname = "" -> aux depth gl_type str true
       | `Data str when data_is_name ->
-         Printf.eprintf "Found parameter with several names (current: \"%s\", new: \"%s\"); keeping current name.\n%!" pname str;
+         warn "Found parameter with several names (current: \"%s\", new: \"%s\"); keeping current name." pname str;
          aux depth gl_type pname data_is_name
       | `Data str when gl_type = "" -> aux depth str pname false
       | `Data str -> aux depth (Printf.sprintf "%s %s" gl_type str) pname false
@@ -215,18 +219,18 @@ let load filename =
           with Not_found -> aux acc
         end
       | `El_start ((_, name), _) ->
-         Printf.eprintf "Don’t know what to do with element %s at enums scope.\n%!" name;
+         warn "Don’t know what to do with element %s at enums scope." name;
          drop (); aux acc
       | `El_end ->
          List.iter (fun enum ->
              match Hashtbl.find_opt enums_by_name enum.ename with
              | None -> Hashtbl.add enums_by_name enum.ename enum
              | Some current ->
-                Printf.eprintf "Found duplicated enum \"%s\" (current value: \"%s\", new value: \"%s\"); keeping current value.\n%!"
+                warn_at enum.line "Found duplicated enum \"%s\" (current value: \"%s\", new value: \"%s\"); keeping current value."
                   enum.ename current.value enum.value
            ) (if propagate_groups then propagate_groups_by_value acc else acc)
       | `Data _ ->
-         Printf.eprintf "Don’t know what to do with data at enums scope.\n%!";
+         warn "Don’t know what to do with data at enums scope.";
          aux acc
       | `Dtd _ -> aux acc
     in
@@ -237,7 +241,7 @@ let load filename =
       | `El_start ((_, "glx"), _)
       | `El_start ((_, "vecequiv"), _) -> drop (); aux proto params alias
       | `El_start ((_, "alias"), attrs) when alias <> "" ->
-         Printf.eprintf "Command %s aliases several commands (current alias: %s, new alias: %s); keeping current alias.\n%!"
+         warn "Command %s aliases several commands (current alias: %s, new alias: %s); keeping current alias."
            proto.pname alias (attrs_assoc "name" attrs);
          drop (); aux proto params alias
       | `El_start ((_, "alias"), attrs) ->
@@ -247,21 +251,21 @@ let load filename =
          let param = read_param attrs in
          aux proto (param :: params) alias
       | `El_start ((_, "proto"), _) when proto != null_param ->
-         Printf.eprintf "Command %s declares several prototypes; keeping current prototype.\n%!" proto.pname;
+         warn "Command %s declares several prototypes; keeping current prototype." proto.pname;
          drop (); aux proto params alias
       | `El_start ((_, "proto"), attrs) ->
          let proto = read_param attrs in
          aux proto params alias
       | `El_start ((_, name), _) ->
-         Printf.eprintf "Don’t know what to do with element %s at command scope.\n%!" name;
+         warn "Don’t know what to do with element %s at command scope." name;
          drop (); aux proto params alias
       | `El_end when proto == null_param ->
-         Printf.eprintf "Found command without prototype.\n%!"
+         warn "Found command without prototype."
       | `El_end when Hashtbl.mem commands_by_name proto.pname ->
-         Printf.eprintf "Found duplicated command %s; keeping current command.\n%!" proto.pname
-      | `El_end -> Hashtbl.add commands_by_name proto.pname { proto; params = List.rev params; alias }
+         warn_at proto.line "Found duplicated command %s; keeping current command." proto.pname
+      | `El_end -> Hashtbl.add commands_by_name proto.pname { proto; params = List.rev params; alias; line = proto.line }
       | `Data _ ->
-         Printf.eprintf "Don’t know what to do with data at command scope.\n%!";
+         warn "Don’t know what to do with data at command scope.";
          aux proto params alias
       | `Dtd _ -> aux proto params alias
     in
@@ -270,11 +274,11 @@ let load filename =
   let rec commands_scope () = match Xmlm.input xml_input with
     | `El_start ((_, "command"), _) -> command_scope (); commands_scope ()
     | `El_start ((_, name), _) ->
-       Printf.eprintf "Don’t know what to do with element %s at commands scope.\n%!" name;
+       warn "Don’t know what to do with element %s at commands scope." name;
        drop (); commands_scope ()
     | `El_end -> ()
     | `Data _ ->
-       Printf.eprintf "Don’t know what to do with data at commands scope.\n%!";
+       warn "Don’t know what to do with data at commands scope.";
        commands_scope ()
     | `Dtd _ -> commands_scope ()
   in
@@ -283,15 +287,19 @@ let load filename =
     let version = attrs_assoc "number" attrs in
     let rec aux1 depth enums commands = match Xmlm.input xml_input with
       | `El_start ((_, "type"), _) -> drop (); aux1 depth enums commands
-      | `El_start ((_, "enum"), attrs) -> aux1 (depth + 1) (attrs_assoc "name" attrs :: enums) commands
-      | `El_start ((_, "command"), attrs) -> aux1 (depth + 1) enums (attrs_assoc "name" attrs :: commands)
+      | `El_start ((_, "enum"), attrs) ->
+         let line = fst (Xmlm.pos xml_input) in
+         aux1 (depth + 1) ((attrs_assoc "name" attrs, line) :: enums) commands
+      | `El_start ((_, "command"), attrs) ->
+         let line = fst (Xmlm.pos xml_input) in
+         aux1 (depth + 1) enums ((attrs_assoc "name" attrs, line) :: commands)
       | `El_start ((_, name), _) ->
-         Printf.eprintf "Don’t know what to do with element %s at feature scope.\n%!" name;
+         warn "Don’t know what to do with element %s at feature scope." name;
          drop (); aux1 depth enums commands
       | `El_end when depth > 1 -> aux1 (depth - 1) enums commands
       | `El_end -> enums, commands
       | `Data _ ->
-         Printf.eprintf "Don’t know what to do with data at require/remove scope.\n%!";
+         warn "Don’t know what to do with data at require/remove scope.";
          aux1 depth enums commands
       | `Dtd _ -> aux1 depth enums commands
     in
@@ -324,7 +332,7 @@ let load filename =
          removed_commands.(i) <- commands;
          aux2 ()
       | `El_start ((_, name), _) ->
-         Printf.eprintf "Don’t know what to do with element %s at feature scope.\n%!" name;
+         warn "Don’t know what to do with element %s at feature scope." name;
          drop (); aux2 ()
       | `El_end ->
          for i = 0 to 2 do
@@ -337,7 +345,7 @@ let load filename =
            then features := { api; version; profile; required_enums; required_commands; removed_enums; removed_commands } :: !features
          done
       | `Data _ ->
-         Printf.eprintf "Don’t know what to do with data at feature scope.\n%!";
+         warn "Don’t know what to do with data at feature scope.";
          aux2 ()
       | `Dtd _ -> aux2 ()
     in
@@ -354,11 +362,11 @@ let load filename =
        registry_scope ()
     | `El_start ((_, "feature"), attrs) -> feature_scope attrs; registry_scope ()
     | `El_start ((_, name), _) ->
-       Printf.eprintf "Don’t know what to do with element %s at registry scope.\n%!" name;
+       warn "Don’t know what to do with element %s at registry scope." name;
        drop (); registry_scope ()
     | `El_end -> ()
     | `Data _ ->
-       Printf.eprintf "Don’t know what to do with data at registry scope.\n%!";
+       warn "Don’t know what to do with data at registry scope.";
        registry_scope ()
     | `Dtd _ -> registry_scope ()
   in
@@ -366,7 +374,7 @@ let load filename =
     begin match Xmlm.input xml_input with
     | `El_start ((_, "registry"), _) -> registry_scope ()
     | `El_start ((_, name), _) ->
-       Printf.eprintf "Don’t know what to do with element %s at global scope.\n%!" name;
+       warn "Don’t know what to do with element %s at global scope." name;
        drop ()
     | `El_end | `Data _ -> assert false
     | `Dtd _ -> ()

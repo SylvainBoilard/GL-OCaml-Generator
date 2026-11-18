@@ -11,19 +11,19 @@ let print_features features =
       Printf.eprintf "%s api, version %s, %s profile\n" (string_of_api feature.api) feature.version (string_of_profile feature.profile);
       if feature.required_enums <> [] then (
         Printf.eprintf "  Required enums:\n";
-        List.iter (Printf.eprintf "    %s\n") feature.required_enums
+        List.iter (fun (name, _) -> Printf.eprintf "    %s\n" name) feature.required_enums
       );
       if feature.required_commands <> [] then (
         Printf.eprintf "  Required commands:\n";
-        List.iter (Printf.eprintf "    %s\n") feature.required_commands
+        List.iter (fun (name, _) -> Printf.eprintf "    %s\n" name) feature.required_commands
       );
       if feature.removed_enums <> [] then (
         Printf.eprintf "  Removed enums:\n";
-        List.iter (Printf.eprintf "    %s\n") feature.removed_enums
+        List.iter (fun (name, _) -> Printf.eprintf "    %s\n" name) feature.removed_enums
       );
       if feature.removed_commands <> [] then (
         Printf.eprintf "  Removed commands:\n";
-        List.iter (Printf.eprintf "    %s\n") feature.removed_commands
+        List.iter (fun (name, _) -> Printf.eprintf "    %s\n" name) feature.removed_commands
       )
     ) features
 
