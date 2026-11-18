@@ -39,7 +39,7 @@ let caml_type_of_param gl_type gl_group gl_class length =
   | "void" -> Unit
   | "GLenum" | "GLint" when gl_group <> None -> Enum (Option.get gl_group)
   | "GLenum *" | "GLint *" when gl_group <> None && length = Some "1" -> Enum (Option.get gl_group)
-  | "const GLenum *" when gl_group <> None -> Array (Enum (Option.get gl_group))
+  | "GLenum *" | "const GLenum *" when gl_group <> None -> Array (Enum (Option.get gl_group))
   | "GLboolean" -> Bool
   | "GLboolean *" when length = Some "1" -> Bool
   | "GLboolean *" -> Array Bool

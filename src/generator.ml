@@ -466,7 +466,7 @@ let () =
       warn_at "gl.xml" l "Xmlm.Error at character %d: %s" c (Xmlm.error_message error);
       exit 1
   in
-  let api, version = GLES2_API, "3.1" in
+  let api, version = GLES2_API, "3.2" in
   let features = List.filter (fun f -> f.api = api && f.version <= version) features in
   let enums_by_name, commands_by_name = filter_by_feature raw_enums_by_name raw_commands_by_name features in
   let types =

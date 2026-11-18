@@ -1,6 +1,8 @@
 CAMLprim value caml_glReadPixels(value x, value y, value width, value height, value format, value type)
 {
-    // TODO: make this work for any GL version. GLES 2.0 only right now.
+    /* TODO:
+       - make this work for any GL version (GLES 2.0 only right now);
+       - reuse for glReadnPixels. */
     CAMLparam0();
     int old_pack_alignment;
     CAMLlocal1(pixels);
