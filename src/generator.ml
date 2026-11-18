@@ -34,6 +34,7 @@ let rec string_of_caml_type = function
 let c_value_of_caml_value value = function
   | Unit -> failwith "c_value_of_caml_value: unit value"
   | Type "pointer" -> sprintf "Pointer_val(%s)" value
+  | Type "sync" -> sprintf "Cptr_val(GLsync, %s)" value
   | Int | Type _ -> sprintf "Int_val(%s)" value
   | Bool -> sprintf "Bool_val(%s)" value
   | Float -> sprintf "Double_val(%s)" value
@@ -48,6 +49,7 @@ let c_value_of_caml_value value = function
 let caml_value_of_c_value value = function
   | Unit -> failwith "caml_value_of_c_value: unit value"
   | Type "pointer" -> failwith "caml_value_of_c_value: pointer value"
+  | Type "sync" -> sprintf "Val_cptr(%s)" value
   | Int | Type _ -> sprintf "Val_int(%s)" value
   | Bool -> sprintf "Val_bool(%s)" value
   | Float -> sprintf "caml_copy_double(%s)" value
@@ -195,6 +197,7 @@ let emit_c_header c_out api version =
 #include <caml/memory.h>
 #include <caml/fail.h>
 #include <caml/bigarray.h>
+#include <assert.h>
 
 #define CAMLvoid CAMLunused_start value unit CAMLunused_end
 
@@ -203,6 +206,14 @@ let emit_c_header c_out api version =
 #endif
 
 #define Pointer_val(v) (Tag_val(v) == 0 ? Caml_ba_data_val(Field((v), 0)) : (void*)(intnat)Int_val(Field((v), 0)))
+
+static value Val_cptr(void* p)
+{
+    assert(((uintptr_t)p & 1) == 0);
+    return (value)p | 1;
+}
+
+#define Cptr_val(t, v) ((t)((v) & ~1))
 
 " (string_of_api api) version (get_gl_include_file_name api version)
 
@@ -455,7 +466,7 @@ let () =
       warn_at "gl.xml" l "Xmlm.Error at character %d: %s" c (Xmlm.error_message error);
       exit 1
   in
-  let api, version = GLES2_API, "2.0" in
+  let api, version = GLES2_API, "3.0" in
   let features = List.filter (fun f -> f.api = api && f.version <= version) features in
   let enums_by_name, commands_by_name = filter_by_feature raw_enums_by_name raw_commands_by_name features in
   let types =
