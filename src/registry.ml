@@ -50,10 +50,13 @@ let caml_type_of_param gl_type gl_group gl_class length =
   | "GLfloat *" -> Array Float
   | "const GLfloat *" -> Bigarray ("float", "float32_elt")
   | "GLint" | "GLuint" | "GLsizei" | "GLintptr" | "GLsizeiptr" -> Int
-  | "GLuint64" -> Int64
+  | "GLint64" | "GLuint64" -> Int64
   | "GLint *" | "GLuint *" | "GLsizei *" when length = Some "1" -> Int
   | "GLint *" | "GLuint *" | "GLsizei *" -> Array Int
+  | "GLint64 *" | "GLuint64 *" when length = Some "1" -> Int64
+  | "GLint64 *" | "GLuint64 *" -> Array Int64
   | "const GLint *" | "const GLuint *" -> Bigarray ("int32", "int32_elt")
+  | "const GLint64 *" | "const GLuint64 *" -> Bigarray ("int64", "int64_elt")
   | "const GLsizei *" -> Bigarray ("nativeint", "nativeint_elt")
   | "const void *" -> Bigarray ("'a", "'b")
   | "GLbitfield" when gl_group <> None -> List (Enum (Option.get gl_group))
