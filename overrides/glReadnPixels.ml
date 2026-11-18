@@ -1,0 +1,1 @@
+external readnPixels : x:int -> y:int -> width:int -> height:int -> format:[`PixelFormat] enum -> kind:[`PixelType] enum -> bufSize:int -> ('a, 'b, c_layout) Genarray.t = "caml_glReadnPixels_byte" "caml_glReadnPixels"
