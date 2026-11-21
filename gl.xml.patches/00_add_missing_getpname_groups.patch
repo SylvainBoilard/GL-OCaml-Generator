@@ -1,0 +1,275 @@
+--- a/gl.xml
++++ b/gl.xml
+@@ -2129,7 +2129,7 @@
+         <enum value="0x8261" name="GL_NO_RESET_NOTIFICATION_ARB"/>
+         <enum value="0x8261" name="GL_NO_RESET_NOTIFICATION_EXT"/>
+         <enum value="0x8261" name="GL_NO_RESET_NOTIFICATION_KHR"/>
+-        <enum value="0x8262" name="GL_MAX_COMPUTE_SHARED_MEMORY_SIZE"/>
++        <enum value="0x8262" name="GL_MAX_COMPUTE_SHARED_MEMORY_SIZE" group="GetPName"/>
+         <enum value="0x8263" name="GL_MAX_COMPUTE_UNIFORM_COMPONENTS" group="GetPName"/>
+         <enum value="0x8264" name="GL_MAX_COMPUTE_ATOMIC_COUNTER_BUFFERS" group="GetPName"/>
+         <enum value="0x8265" name="GL_MAX_COMPUTE_ATOMIC_COUNTERS" group="GetPName"/>
+@@ -2271,7 +2271,7 @@
+         <enum value="0x82DE" name="GL_TEXTURE_VIEW_NUM_LAYERS"/>
+         <enum value="0x82DE" name="GL_TEXTURE_VIEW_NUM_LAYERS_EXT"/>
+         <enum value="0x82DE" name="GL_TEXTURE_VIEW_NUM_LAYERS_OES"/>
+-        <enum value="0x82DF" name="GL_TEXTURE_IMMUTABLE_LEVELS"/>
++        <enum value="0x82DF" name="GL_TEXTURE_IMMUTABLE_LEVELS" group="GetTextureParameter"/>
+         <enum value="0x82E0" name="GL_BUFFER" group="ObjectIdentifier"/>
+         <enum value="0x82E0" name="GL_BUFFER_KHR"/>
+         <enum value="0x82E1" name="GL_SHADER" group="ObjectIdentifier"/>
+@@ -2282,7 +2282,7 @@
+         <enum value="0x82E3" name="GL_QUERY_KHR"/>
+         <enum value="0x82E4" name="GL_PROGRAM_PIPELINE" group="ObjectIdentifier"/>
+         <enum value="0x82E4" name="GL_PROGRAM_PIPELINE_KHR"/>
+-        <enum value="0x82E5" name="GL_MAX_VERTEX_ATTRIB_STRIDE"/>
++        <enum value="0x82E5" name="GL_MAX_VERTEX_ATTRIB_STRIDE" group="GetPName"/>
+         <enum value="0x82E6" name="GL_SAMPLER" group="ObjectIdentifier"/>
+         <enum value="0x82E6" name="GL_SAMPLER_KHR"/>
+         <enum value="0x82E7" name="GL_DISPLAY_LIST"/>
+@@ -3872,7 +3872,7 @@
+         <enum value="0x8848" name="GL_MATRIX_INDEX_ARRAY_STRIDE_OES"/>
+         <enum value="0x8849" name="GL_MATRIX_INDEX_ARRAY_POINTER_ARB"/>
+         <enum value="0x8849" name="GL_MATRIX_INDEX_ARRAY_POINTER_OES"/>
+-        <enum value="0x884A" name="GL_TEXTURE_DEPTH_SIZE"/>
++        <enum value="0x884A" name="GL_TEXTURE_DEPTH_SIZE" group="GetTextureParameter"/>
+         <enum value="0x884A" name="GL_TEXTURE_DEPTH_SIZE_ARB"/>
+         <enum value="0x884B" name="GL_DEPTH_TEXTURE_MODE"/>
+         <enum value="0x884B" name="GL_DEPTH_TEXTURE_MODE_ARB"/>
+@@ -4133,7 +4133,7 @@
+         <enum value="0x88F0" name="GL_DEPTH24_STENCIL8" group="InternalFormat,SizedInternalFormat"/>
+         <enum value="0x88F0" name="GL_DEPTH24_STENCIL8_EXT" group="InternalFormat,SizedInternalFormat"/>
+         <enum value="0x88F0" name="GL_DEPTH24_STENCIL8_OES" group="InternalFormat,SizedInternalFormat"/>
+-        <enum value="0x88F1" name="GL_TEXTURE_STENCIL_SIZE"/>
++        <enum value="0x88F1" name="GL_TEXTURE_STENCIL_SIZE" group="GetTextureParameter"/>
+         <enum value="0x88F1" name="GL_TEXTURE_STENCIL_SIZE_EXT"/>
+         <enum value="0x88F2" name="GL_STENCIL_TAG_BITS_EXT"/>
+         <enum value="0x88F3" name="GL_STENCIL_CLEAR_TAG_VALUE_EXT"/>
+@@ -4632,19 +4632,19 @@
+     </enums>
+ 
+     <enums namespace="GL" start="0x8C10" end="0x8C8F" vendor="NV" comment="For Pat Brown">
+-        <enum value="0x8C10" name="GL_TEXTURE_RED_TYPE"/>
++        <enum value="0x8C10" name="GL_TEXTURE_RED_TYPE" group="GetTextureParameter"/>
+         <enum value="0x8C10" name="GL_TEXTURE_RED_TYPE_ARB"/>
+-        <enum value="0x8C11" name="GL_TEXTURE_GREEN_TYPE"/>
++        <enum value="0x8C11" name="GL_TEXTURE_GREEN_TYPE" group="GetTextureParameter"/>
+         <enum value="0x8C11" name="GL_TEXTURE_GREEN_TYPE_ARB"/>
+-        <enum value="0x8C12" name="GL_TEXTURE_BLUE_TYPE"/>
++        <enum value="0x8C12" name="GL_TEXTURE_BLUE_TYPE" group="GetTextureParameter"/>
+         <enum value="0x8C12" name="GL_TEXTURE_BLUE_TYPE_ARB"/>
+-        <enum value="0x8C13" name="GL_TEXTURE_ALPHA_TYPE"/>
++        <enum value="0x8C13" name="GL_TEXTURE_ALPHA_TYPE" group="GetTextureParameter"/>
+         <enum value="0x8C13" name="GL_TEXTURE_ALPHA_TYPE_ARB"/>
+         <enum value="0x8C14" name="GL_TEXTURE_LUMINANCE_TYPE"/>
+         <enum value="0x8C14" name="GL_TEXTURE_LUMINANCE_TYPE_ARB"/>
+         <enum value="0x8C15" name="GL_TEXTURE_INTENSITY_TYPE"/>
+         <enum value="0x8C15" name="GL_TEXTURE_INTENSITY_TYPE_ARB"/>
+-        <enum value="0x8C16" name="GL_TEXTURE_DEPTH_TYPE"/>
++        <enum value="0x8C16" name="GL_TEXTURE_DEPTH_TYPE" group="GetTextureParameter"/>
+         <enum value="0x8C16" name="GL_TEXTURE_DEPTH_TYPE_ARB"/>
+         <enum value="0x8C17" name="GL_UNSIGNED_NORMALIZED"/>
+         <enum value="0x8C17" name="GL_UNSIGNED_NORMALIZED_ARB"/>
+@@ -4713,7 +4713,7 @@
+         <enum value="0x8C3E" name="GL_UNSIGNED_INT_5_9_9_9_REV" group="PixelType"/>
+         <enum value="0x8C3E" name="GL_UNSIGNED_INT_5_9_9_9_REV_APPLE" group="PixelType"/>
+         <enum value="0x8C3E" name="GL_UNSIGNED_INT_5_9_9_9_REV_EXT" group="PixelType"/>
+-        <enum value="0x8C3F" name="GL_TEXTURE_SHARED_SIZE"/>
++        <enum value="0x8C3F" name="GL_TEXTURE_SHARED_SIZE" group="GetTextureParameter"/>
+         <enum value="0x8C3F" name="GL_TEXTURE_SHARED_SIZE_EXT"/>
+         <enum value="0x8C40" name="GL_SRGB" group="InternalFormat"/>
+         <enum value="0x8C40" name="GL_SRGB_EXT" group="InternalFormat"/>
+@@ -5049,7 +5049,7 @@
+         <enum value="0x8D56" name="GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE"/>
+         <enum value="0x8D56" name="GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_EXT"/>
+         <enum value="0x8D56" name="GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_NV"/>
+-        <enum value="0x8D57" name="GL_MAX_SAMPLES"/>
++        <enum value="0x8D57" name="GL_MAX_SAMPLES" group="GetPName"/>
+         <enum value="0x8D57" name="GL_MAX_SAMPLES_ANGLE"/>
+         <enum value="0x8D57" name="GL_MAX_SAMPLES_APPLE"/>
+         <enum value="0x8D57" name="GL_MAX_SAMPLES_EXT"/>
+@@ -5377,7 +5377,7 @@
+         <enum value="0x8E50" name="GL_SAMPLE_LOCATION_NV" alias="GL_SAMPLE_POSITION_NV"/>
+         <enum value="0x8E51" name="GL_SAMPLE_MASK" group="EnableCap"/>
+         <enum value="0x8E51" name="GL_SAMPLE_MASK_NV"/>
+-        <enum value="0x8E52" name="GL_SAMPLE_MASK_VALUE"/>
++        <enum value="0x8E52" name="GL_SAMPLE_MASK_VALUE" group="GetPName"/>
+         <enum value="0x8E52" name="GL_SAMPLE_MASK_VALUE_NV"/>
+         <enum value="0x8E53" name="GL_TEXTURE_BINDING_RENDERBUFFER_NV"/>
+         <enum value="0x8E54" name="GL_TEXTURE_RENDERBUFFER_DATA_STORE_BINDING_NV"/>
+@@ -5400,10 +5400,10 @@
+         <enum value="0x8E5D" name="GL_FRAGMENT_INTERPOLATION_OFFSET_BITS"/>
+         <enum value="0x8E5D" name="GL_FRAGMENT_INTERPOLATION_OFFSET_BITS_OES"/>
+         <enum value="0x8E5D" name="GL_FRAGMENT_PROGRAM_INTERPOLATION_OFFSET_BITS_NV"/>
+-        <enum value="0x8E5E" name="GL_MIN_PROGRAM_TEXTURE_GATHER_OFFSET"/>
++        <enum value="0x8E5E" name="GL_MIN_PROGRAM_TEXTURE_GATHER_OFFSET" group="GetPName"/>
+         <enum value="0x8E5E" name="GL_MIN_PROGRAM_TEXTURE_GATHER_OFFSET_ARB"/>
+         <enum value="0x8E5E" name="GL_MIN_PROGRAM_TEXTURE_GATHER_OFFSET_NV"/>
+-        <enum value="0x8E5F" name="GL_MAX_PROGRAM_TEXTURE_GATHER_OFFSET"/>
++        <enum value="0x8E5F" name="GL_MAX_PROGRAM_TEXTURE_GATHER_OFFSET" group="GetPName"/>
+         <enum value="0x8E5F" name="GL_MAX_PROGRAM_TEXTURE_GATHER_OFFSET_ARB"/>
+         <enum value="0x8E5F" name="GL_MAX_PROGRAM_TEXTURE_GATHER_OFFSET_NV"/>
+         <enum value="0x8E60" name="GL_MAX_MESH_UNIFORM_BLOCKS_EXT"/>
+@@ -5596,26 +5596,26 @@
+         <enum value="0x8F37" name="GL_COPY_WRITE_BUFFER" group="CopyBufferSubDataTarget,BufferTargetARB,BufferStorageTarget"/>
+         <enum value="0x8F37" name="GL_COPY_WRITE_BUFFER_NV"/>
+         <enum value="0x8F37" name="GL_COPY_WRITE_BUFFER_BINDING" alias="GL_COPY_WRITE_BUFFER"/>
+-        <enum value="0x8F38" name="GL_MAX_IMAGE_UNITS"/>
++        <enum value="0x8F38" name="GL_MAX_IMAGE_UNITS" group="GetPName"/>
+         <enum value="0x8F38" name="GL_MAX_IMAGE_UNITS_EXT"/>
+         <enum value="0x8F39" name="GL_MAX_COMBINED_IMAGE_UNITS_AND_FRAGMENT_OUTPUTS"/>
+         <enum value="0x8F39" name="GL_MAX_COMBINED_IMAGE_UNITS_AND_FRAGMENT_OUTPUTS_EXT"/>
+-        <enum value="0x8F39" name="GL_MAX_COMBINED_SHADER_OUTPUT_RESOURCES" alias="GL_MAX_COMBINED_IMAGE_UNITS_AND_FRAGMENT_OUTPUTS"/>
+-        <enum value="0x8F3A" name="GL_IMAGE_BINDING_NAME"/>
++        <enum value="0x8F39" name="GL_MAX_COMBINED_SHADER_OUTPUT_RESOURCES" alias="GL_MAX_COMBINED_IMAGE_UNITS_AND_FRAGMENT_OUTPUTS" group="GetPName"/>
++        <enum value="0x8F3A" name="GL_IMAGE_BINDING_NAME" group="GetPName"/>
+         <enum value="0x8F3A" name="GL_IMAGE_BINDING_NAME_EXT"/>
+-        <enum value="0x8F3B" name="GL_IMAGE_BINDING_LEVEL"/>
++        <enum value="0x8F3B" name="GL_IMAGE_BINDING_LEVEL" group="GetPName"/>
+         <enum value="0x8F3B" name="GL_IMAGE_BINDING_LEVEL_EXT"/>
+-        <enum value="0x8F3C" name="GL_IMAGE_BINDING_LAYERED"/>
++        <enum value="0x8F3C" name="GL_IMAGE_BINDING_LAYERED" group="GetPName"/>
+         <enum value="0x8F3C" name="GL_IMAGE_BINDING_LAYERED_EXT"/>
+-        <enum value="0x8F3D" name="GL_IMAGE_BINDING_LAYER"/>
++        <enum value="0x8F3D" name="GL_IMAGE_BINDING_LAYER" group="GetPName"/>
+         <enum value="0x8F3D" name="GL_IMAGE_BINDING_LAYER_EXT"/>
+-        <enum value="0x8F3E" name="GL_IMAGE_BINDING_ACCESS"/>
++        <enum value="0x8F3E" name="GL_IMAGE_BINDING_ACCESS" group="GetPName"/>
+         <enum value="0x8F3E" name="GL_IMAGE_BINDING_ACCESS_EXT"/>
+         <enum value="0x8F3F" name="GL_DRAW_INDIRECT_BUFFER" group="CopyBufferSubDataTarget,BufferTargetARB,BufferStorageTarget"/>
+         <enum value="0x8F40" name="GL_DRAW_INDIRECT_UNIFIED_NV"/>
+         <enum value="0x8F41" name="GL_DRAW_INDIRECT_ADDRESS_NV"/>
+         <enum value="0x8F42" name="GL_DRAW_INDIRECT_LENGTH_NV"/>
+-        <enum value="0x8F43" name="GL_DRAW_INDIRECT_BUFFER_BINDING"/>
++        <enum value="0x8F43" name="GL_DRAW_INDIRECT_BUFFER_BINDING" group="GetPName"/>
+         <enum value="0x8F44" name="GL_MAX_PROGRAM_SUBROUTINE_PARAMETERS_NV"/>
+         <enum value="0x8F45" name="GL_MAX_PROGRAM_SUBROUTINE_NUM_NV"/>
+         <enum value="0x8F46" name="GL_DOUBLE_MAT2" group="AttributeType,UniformType"/>
+@@ -5636,7 +5636,7 @@
+         <enum value="0x8F4D" name="GL_DOUBLE_MAT4x2_EXT"/>
+         <enum value="0x8F4E" name="GL_DOUBLE_MAT4x3" group="UniformType,AttributeType"/>
+         <enum value="0x8F4E" name="GL_DOUBLE_MAT4x3_EXT"/>
+-        <enum value="0x8F4F" name="GL_VERTEX_BINDING_BUFFER"/>
++        <enum value="0x8F4F" name="GL_VERTEX_BINDING_BUFFER" group="GetPName"/>
+     </enums>
+ 
+     <enums namespace="GL" start="0x8F50" end="0x8F5F" vendor="ZiiLabs" comment="For Jon Kennedy, Khronos public bug 75">
+@@ -5918,7 +5918,7 @@
+         <enum value="0x906C" name="GL_UNSIGNED_INT_IMAGE_2D_MULTISAMPLE_ARRAY_EXT"/>
+         <enum value="0x906D" name="GL_MAX_IMAGE_SAMPLES"/>
+         <enum value="0x906D" name="GL_MAX_IMAGE_SAMPLES_EXT"/>
+-        <enum value="0x906E" name="GL_IMAGE_BINDING_FORMAT"/>
++        <enum value="0x906E" name="GL_IMAGE_BINDING_FORMAT" group="GetPName"/>
+         <enum value="0x906E" name="GL_IMAGE_BINDING_FORMAT_EXT"/>
+         <enum value="0x906F" name="GL_RGB10_A2UI" group="InternalFormat,SizedInternalFormat"/>
+         <enum value="0x9070" name="GL_PATH_FORMAT_SVG_NV" group="PathStringFormat"/>
+@@ -6003,9 +6003,9 @@
+         <enum value="0x90BF" name="GL_PATH_COVER_DEPTH_FUNC_NV"/>
+             <unused start="0x90C0" end="0x90C6" vendor="NV"/>
+         <enum value="0x90C7" name="GL_IMAGE_FORMAT_COMPATIBILITY_TYPE" group="InternalFormatPName"/>
+-        <enum value="0x90C8" name="GL_IMAGE_FORMAT_COMPATIBILITY_BY_SIZE"/>
+-        <enum value="0x90C9" name="GL_IMAGE_FORMAT_COMPATIBILITY_BY_CLASS"/>
+-        <enum value="0x90CA" name="GL_MAX_VERTEX_IMAGE_UNIFORMS"/>
++        <enum value="0x90C8" name="GL_IMAGE_FORMAT_COMPATIBILITY_BY_SIZE" group="InternalFormatPName"/>
++        <enum value="0x90C9" name="GL_IMAGE_FORMAT_COMPATIBILITY_BY_CLASS" group="InternalFormatPName"/>
++        <enum value="0x90CA" name="GL_MAX_VERTEX_IMAGE_UNIFORMS" group="GetPName"/>
+         <enum value="0x90CB" name="GL_MAX_TESS_CONTROL_IMAGE_UNIFORMS"/>
+         <enum value="0x90CB" name="GL_MAX_TESS_CONTROL_IMAGE_UNIFORMS_EXT"/>
+         <enum value="0x90CB" name="GL_MAX_TESS_CONTROL_IMAGE_UNIFORMS_OES"/>
+@@ -6015,8 +6015,8 @@
+         <enum value="0x90CD" name="GL_MAX_GEOMETRY_IMAGE_UNIFORMS"/>
+         <enum value="0x90CD" name="GL_MAX_GEOMETRY_IMAGE_UNIFORMS_EXT"/>
+         <enum value="0x90CD" name="GL_MAX_GEOMETRY_IMAGE_UNIFORMS_OES"/>
+-        <enum value="0x90CE" name="GL_MAX_FRAGMENT_IMAGE_UNIFORMS"/>
+-        <enum value="0x90CF" name="GL_MAX_COMBINED_IMAGE_UNIFORMS"/>
++        <enum value="0x90CE" name="GL_MAX_FRAGMENT_IMAGE_UNIFORMS" group="GetPName"/>
++        <enum value="0x90CF" name="GL_MAX_COMBINED_IMAGE_UNIFORMS" group="GetPName"/>
+         <enum value="0x90D0" name="GL_MAX_DEEP_3D_TEXTURE_WIDTH_HEIGHT_NV"/>
+         <enum value="0x90D1" name="GL_MAX_DEEP_3D_TEXTURE_DEPTH_NV"/>
+         <enum value="0x90D2" name="GL_SHADER_STORAGE_BUFFER" group="CopyBufferSubDataTarget,BufferTargetARB,BufferStorageTarget"/>
+@@ -6037,7 +6037,7 @@
+         <enum value="0x90DB" name="GL_MAX_COMPUTE_SHADER_STORAGE_BLOCKS" group="GetPName"/>
+         <enum value="0x90DC" name="GL_MAX_COMBINED_SHADER_STORAGE_BLOCKS" group="GetPName"/>
+         <enum value="0x90DD" name="GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS" group="GetPName"/>
+-        <enum value="0x90DE" name="GL_MAX_SHADER_STORAGE_BLOCK_SIZE"/>
++        <enum value="0x90DE" name="GL_MAX_SHADER_STORAGE_BLOCK_SIZE" group="GetPName"/>
+         <enum value="0x90DF" name="GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT" group="GetPName"/>
+             <unused start="0x90E0" vendor="NV"/>
+         <enum value="0x90E1" name="GL_SYNC_X11_FENCE_EXT"/>
+@@ -6070,8 +6070,8 @@
+         <enum value="0x9104" name="GL_TEXTURE_BINDING_2D_MULTISAMPLE" group="GetPName"/>
+         <enum value="0x9105" name="GL_TEXTURE_BINDING_2D_MULTISAMPLE_ARRAY" group="GetPName"/>
+         <enum value="0x9105" name="GL_TEXTURE_BINDING_2D_MULTISAMPLE_ARRAY_OES"/>
+-        <enum value="0x9106" name="GL_TEXTURE_SAMPLES"/>
+-        <enum value="0x9107" name="GL_TEXTURE_FIXED_SAMPLE_LOCATIONS"/>
++        <enum value="0x9106" name="GL_TEXTURE_SAMPLES" group="GetTextureParameter"/>
++        <enum value="0x9107" name="GL_TEXTURE_FIXED_SAMPLE_LOCATIONS" group="GetTextureParameter"/>
+         <enum value="0x9108" name="GL_SAMPLER_2D_MULTISAMPLE" group="AttributeType,UniformType"/>
+         <enum value="0x9109" name="GL_INT_SAMPLER_2D_MULTISAMPLE" group="AttributeType,UniformType"/>
+         <enum value="0x910A" name="GL_UNSIGNED_INT_SAMPLER_2D_MULTISAMPLE" group="AttributeType,UniformType"/>
+@@ -6130,7 +6130,7 @@
+         <enum value="0x912C" name="GL_PACK_COMPRESSED_BLOCK_HEIGHT"/>
+         <enum value="0x912D" name="GL_PACK_COMPRESSED_BLOCK_DEPTH"/>
+         <enum value="0x912E" name="GL_PACK_COMPRESSED_BLOCK_SIZE"/>
+-        <enum value="0x912F" name="GL_TEXTURE_IMMUTABLE_FORMAT"/>
++        <enum value="0x912F" name="GL_TEXTURE_IMMUTABLE_FORMAT" group="GetTextureParameter"/>
+         <enum value="0x912F" name="GL_TEXTURE_IMMUTABLE_FORMAT_EXT"/>
+     </enums>
+ 
+@@ -6264,7 +6264,7 @@
+             <unused start="0x91BA" vendor="AMD"/>
+         <enum value="0x91BB" name="GL_MAX_COMPUTE_UNIFORM_BLOCKS" group="GetPName"/>
+         <enum value="0x91BC" name="GL_MAX_COMPUTE_TEXTURE_IMAGE_UNITS" group="GetPName"/>
+-        <enum value="0x91BD" name="GL_MAX_COMPUTE_IMAGE_UNIFORMS"/>
++        <enum value="0x91BD" name="GL_MAX_COMPUTE_IMAGE_UNIFORMS" group="GetPName"/>
+         <enum value="0x91BE" name="GL_MAX_COMPUTE_WORK_GROUP_COUNT" group="GetPName"/>
+         <enum value="0x91BF" name="GL_MAX_COMPUTE_WORK_GROUP_SIZE" group="GetPName"/>
+         <enum value="0x91BF" name="GL_MAX_COMPUTE_FIXED_GROUP_SIZE_ARB" alias="GL_MAX_COMPUTE_WORK_GROUP_SIZE"/>
+@@ -6426,9 +6426,9 @@
+         <enum value="0x92BE" name="GL_PRIMITIVE_BOUNDING_BOX_OES"/>
+         <enum value="0x92BF" name="GL_ALPHA_TO_COVERAGE_DITHER_MODE_NV"/>
+         <enum value="0x92C0" name="GL_ATOMIC_COUNTER_BUFFER" group="CopyBufferSubDataTarget,BufferTargetARB,BufferStorageTarget"/>
+-        <enum value="0x92C1" name="GL_ATOMIC_COUNTER_BUFFER_BINDING" group="AtomicCounterBufferPName"/>
+-        <enum value="0x92C2" name="GL_ATOMIC_COUNTER_BUFFER_START"/>
+-        <enum value="0x92C3" name="GL_ATOMIC_COUNTER_BUFFER_SIZE"/>
++        <enum value="0x92C1" name="GL_ATOMIC_COUNTER_BUFFER_BINDING" group="GetPName,AtomicCounterBufferPName"/>
++        <enum value="0x92C2" name="GL_ATOMIC_COUNTER_BUFFER_START" group="GetPName"/>
++        <enum value="0x92C3" name="GL_ATOMIC_COUNTER_BUFFER_SIZE" group="GetPName"/>
+         <enum value="0x92C4" name="GL_ATOMIC_COUNTER_BUFFER_DATA_SIZE" group="AtomicCounterBufferPName"/>
+         <enum value="0x92C5" name="GL_ATOMIC_COUNTER_BUFFER_ACTIVE_ATOMIC_COUNTERS" group="AtomicCounterBufferPName"/>
+         <enum value="0x92C6" name="GL_ATOMIC_COUNTER_BUFFER_ACTIVE_ATOMIC_COUNTER_INDICES" group="AtomicCounterBufferPName"/>
+@@ -6437,7 +6437,7 @@
+         <enum value="0x92C9" name="GL_ATOMIC_COUNTER_BUFFER_REFERENCED_BY_TESS_EVALUATION_SHADER" group="AtomicCounterBufferPName"/>
+         <enum value="0x92CA" name="GL_ATOMIC_COUNTER_BUFFER_REFERENCED_BY_GEOMETRY_SHADER" group="AtomicCounterBufferPName"/>
+         <enum value="0x92CB" name="GL_ATOMIC_COUNTER_BUFFER_REFERENCED_BY_FRAGMENT_SHADER" group="AtomicCounterBufferPName"/>
+-        <enum value="0x92CC" name="GL_MAX_VERTEX_ATOMIC_COUNTER_BUFFERS"/>
++        <enum value="0x92CC" name="GL_MAX_VERTEX_ATOMIC_COUNTER_BUFFERS" group="GetPName"/>
+         <enum value="0x92CD" name="GL_MAX_TESS_CONTROL_ATOMIC_COUNTER_BUFFERS"/>
+         <enum value="0x92CD" name="GL_MAX_TESS_CONTROL_ATOMIC_COUNTER_BUFFERS_EXT"/>
+         <enum value="0x92CD" name="GL_MAX_TESS_CONTROL_ATOMIC_COUNTER_BUFFERS_OES"/>
+@@ -6447,8 +6447,8 @@
+         <enum value="0x92CF" name="GL_MAX_GEOMETRY_ATOMIC_COUNTER_BUFFERS"/>
+         <enum value="0x92CF" name="GL_MAX_GEOMETRY_ATOMIC_COUNTER_BUFFERS_EXT"/>
+         <enum value="0x92CF" name="GL_MAX_GEOMETRY_ATOMIC_COUNTER_BUFFERS_OES"/>
+-        <enum value="0x92D0" name="GL_MAX_FRAGMENT_ATOMIC_COUNTER_BUFFERS"/>
+-        <enum value="0x92D1" name="GL_MAX_COMBINED_ATOMIC_COUNTER_BUFFERS"/>
++        <enum value="0x92D0" name="GL_MAX_FRAGMENT_ATOMIC_COUNTER_BUFFERS" group="GetPName"/>
++        <enum value="0x92D1" name="GL_MAX_COMBINED_ATOMIC_COUNTER_BUFFERS" group="GetPName"/>
+         <enum value="0x92D2" name="GL_MAX_VERTEX_ATOMIC_COUNTERS" group="GetPName"/>
+         <enum value="0x92D3" name="GL_MAX_TESS_CONTROL_ATOMIC_COUNTERS" group="GetPName"/>
+         <enum value="0x92D3" name="GL_MAX_TESS_CONTROL_ATOMIC_COUNTERS_EXT"/>
+@@ -6461,11 +6461,11 @@
+         <enum value="0x92D5" name="GL_MAX_GEOMETRY_ATOMIC_COUNTERS_OES"/>
+         <enum value="0x92D6" name="GL_MAX_FRAGMENT_ATOMIC_COUNTERS" group="GetPName"/>
+         <enum value="0x92D7" name="GL_MAX_COMBINED_ATOMIC_COUNTERS" group="GetPName"/>
+-        <enum value="0x92D8" name="GL_MAX_ATOMIC_COUNTER_BUFFER_SIZE"/>
++        <enum value="0x92D8" name="GL_MAX_ATOMIC_COUNTER_BUFFER_SIZE" group="GetPName"/>
+         <enum value="0x92D9" name="GL_ACTIVE_ATOMIC_COUNTER_BUFFERS" group="ProgramPropertyARB"/>
+         <enum value="0x92DA" name="GL_UNIFORM_ATOMIC_COUNTER_BUFFER_INDEX" group="UniformPName"/>
+-        <enum value="0x92DB" name="GL_UNSIGNED_INT_ATOMIC_COUNTER"/>
+-        <enum value="0x92DC" name="GL_MAX_ATOMIC_COUNTER_BUFFER_BINDINGS"/>
++        <enum value="0x92DB" name="GL_UNSIGNED_INT_ATOMIC_COUNTER" group="GetPName"/>
++        <enum value="0x92DC" name="GL_MAX_ATOMIC_COUNTER_BUFFER_BINDINGS" group="GetPName"/>
+         <enum value="0x92DD" name="GL_FRAGMENT_COVERAGE_TO_COLOR_NV"/>
+         <enum value="0x92DE" name="GL_FRAGMENT_COVERAGE_COLOR_NV"/>
+         <enum value="0x92DF" name="GL_MESH_OUTPUT_PER_VERTEX_GRANULARITY_EXT"/>

@@ -1,0 +1,19 @@
+--- a/gl.xml
++++ b/gl.xml
+@@ -6094,13 +6094,13 @@
+         <enum value="0x9114" name="GL_SYNC_STATUS_APPLE"/>
+         <enum value="0x9115" name="GL_SYNC_FLAGS" group="SyncParameterName"/>
+         <enum value="0x9115" name="GL_SYNC_FLAGS_APPLE"/>
+-        <enum value="0x9116" name="GL_SYNC_FENCE"/>
++        <enum value="0x9116" name="GL_SYNC_FENCE" group="SyncParameterName"/>
+         <enum value="0x9116" name="GL_SYNC_FENCE_APPLE"/>
+         <enum value="0x9117" name="GL_SYNC_GPU_COMMANDS_COMPLETE" group="SyncCondition"/>
+         <enum value="0x9117" name="GL_SYNC_GPU_COMMANDS_COMPLETE_APPLE"/>
+-        <enum value="0x9118" name="GL_UNSIGNALED"/>
++        <enum value="0x9118" name="GL_UNSIGNALED" group="SyncStatus"/>
+         <enum value="0x9118" name="GL_UNSIGNALED_APPLE"/>
+-        <enum value="0x9119" name="GL_SIGNALED"/>
++        <enum value="0x9119" name="GL_SIGNALED" group="SyncStatus"/>
+         <enum value="0x9119" name="GL_SIGNALED_APPLE"/>
+         <enum value="0x911A" name="GL_ALREADY_SIGNALED" group="SyncStatus"/>
+         <enum value="0x911A" name="GL_ALREADY_SIGNALED_APPLE"/>
