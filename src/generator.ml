@@ -81,7 +81,7 @@ let c_array_of_caml_array param buffer =
   bprintf buffer "    for (int i = 0; i < %s_length; ++i)\n" pname;
   bprintf buffer "        %s_array[i] = %s;\n" pname element
 
-let caml_array_of_c_array param buffer =
+let caml_array_of_c_array param command enums_by_group buffer =
   let pname = replace_if_reserved_c_word param.pname in
   let inner_caml_type = match param.caml_type with
     | Array t -> t
@@ -91,12 +91,52 @@ let caml_array_of_c_array param buffer =
   if inner_caml_type = Float
   then bprintf buffer "    caml_%s_array = caml_alloc_float_array(%s_length);\n" pname pname
   else bprintf buffer "    caml_%s_array = caml_alloc_small(0, %s_length);\n" pname pname;
-  bprintf buffer "    for (int i = 0; i < %s_length; ++i)\n" pname;
-  if inner_caml_type = Float then
-    bprintf buffer "        Store_double_array_field(caml_%s_array, i, %s_array[i]);\n" pname pname
-  else
-    let element = caml_value_of_c_value (sprintf "%s_array[i]" pname) inner_caml_type in
-    bprintf buffer "        Field(caml_%s_array, i) = %s;\n" pname element
+  begin match param.value_for with
+  | None ->
+     bprintf buffer "    for (int i = 0; i < %s_length; ++i)\n" pname;
+     if inner_caml_type = Float then
+       bprintf buffer "        Store_double_array_field(caml_%s_array, i, %s_array[i]);\n" pname pname
+     else
+       let element = caml_value_of_c_value (sprintf "%s_array[i]" pname) inner_caml_type in
+       bprintf buffer "        Field(caml_%s_array, i) = %s;\n" pname element
+  | Some ref_pname ->
+     (* The type of the elements depends on the value of the referenced
+        parameter at runtime: switch on it and convert each element
+        accordingly (enum through the gl_enums table, or plain int/bool/...). *)
+     let ref_param = List.find (fun p -> p.pname = ref_pname) command.params in
+     let[@warning "-8"] Enum group = ref_param.caml_type in
+     let ref_c_name = replace_if_reserved_c_word ref_param.pname in
+     let gl_type =
+       let open String in
+       if ends_with ~suffix:" *" param.gl_type
+       then sub param.gl_type 0 (length param.gl_type - 2)
+       else failwith "caml_array_of_c_array: could not deduce element type"
+     in
+     let cases =
+       Option.value (Hashtbl.find_opt enums_by_group group) ~default:[]
+       |> List.filter_map (fun enum ->
+              let convert = match enum.value_group, enum.value_type with
+                | Some _, _ -> Some "Val_int(find_enum_offset(gl_enums, sizeof(gl_enums) / sizeof(*gl_enums), p))"
+                | None, Some "bool" -> Some "Val_bool(p)"
+                | None, Some "int" -> Some "Val_int(p)"
+                | None, Some "float" -> Some "caml_copy_double(p)"
+                | None, Some _ -> Some "Val_int(p)"
+                | None, None -> None
+              in
+              Option.map (fun c -> sprintf "        case %s: v = %s; break;\n" enum.ename c) convert)
+     in
+     bprintf buffer "    for (int i = 0; i < %s_length; ++i)\n" pname;
+     bprintf buffer "    {\n";
+     bprintf buffer "        %s p = %s_array[i];\n" gl_type pname;
+     bprintf buffer "        value v;\n";
+     bprintf buffer "        switch (gl_enums[Int_val(%s)])\n" ref_c_name;
+     bprintf buffer "        {\n";
+     List.iter (fun case_line -> bprintf buffer "%s" case_line) cases;
+     bprintf buffer "        default: v = Val_int(p); break;\n";
+     bprintf buffer "        }\n";
+     bprintf buffer "        Field(caml_%s_array, i) = v;\n" pname;
+     bprintf buffer "    }\n"
+  end
 
 let prepare_c_output param input_parameters explicit_input_parameters buffer =
   let pname = replace_if_reserved_c_word param.pname in
@@ -230,9 +270,10 @@ let emit_caml_types caml_out buffer types enums_sorted_by_value =
   bprintf buffer "\ntype 'k enum =\n";
   List.iter (fun enum ->
       let variant_type = sprintf "[<`%s]" (String.concat "|`" enum.groups) in
-      match enum.value_group with
-      | None -> bprintf buffer "  | %s : %s enum\n" (to_pascal_case enum.ename) variant_type
-      | Some value_group -> bprintf buffer "  | %s : (%s * [`%s] enum) enum\n" (to_pascal_case enum.ename) variant_type value_group
+      match enum.value_group, enum.value_type with
+      | None, None -> bprintf buffer "  | %s : %s enum\n" (to_pascal_case enum.ename) variant_type
+      | Some value_group, _ -> bprintf buffer "  | %s : (%s * [`%s] enum) enum\n" (to_pascal_case enum.ename) variant_type value_group
+      | None, Some value_type -> bprintf buffer "  | %s : (%s * %s) enum\n" (to_pascal_case enum.ename) variant_type value_type
     ) enums_sorted_by_value;
   bprintf buffer "\n";
   Buffer.output_buffer caml_out buffer
@@ -281,7 +322,7 @@ let emit_caml_function
            (* FIXME: if a function has several parameters with different "value_for"
               attributes, we need to emit 'a, then 'b, then 'c and so on. *)
            then sprintf "%s:'a" (replace_if_reserved_caml_word param.pname)
-           else if List.exists (fun other -> other.value_for = Some param.pname) explicit_input_parameters
+           else if List.exists (fun other -> other.value_for = Some param.pname) command.params
            then (
              let[@warning "-8"] Enum gl_group = param.caml_type in
              sprintf "%s:([`%s] * 'a) enum" (replace_if_reserved_caml_word param.pname) gl_group
@@ -296,7 +337,11 @@ let emit_caml_function
            if param.caml_type = Unimplemented then
              warn_at "gl.xml" param.line "No OCaml replacement for output \"%s\" of type \"%s\" in command %s."
                param.pname param.gl_type command.proto.pname;
-           string_of_caml_type param.caml_type
+           if param.value_for <> None
+           then (match param.caml_type with
+                 | Array _ -> "'a array"
+                 | _ -> "'a")
+           else string_of_caml_type param.caml_type
          ) all_explicit_outputs
        |> String.concat " * "
   in
@@ -312,7 +357,7 @@ let emit_caml_function
     (remove_gl_prefix command.proto.pname) function_type result_type stub_names attributes
 
 let emit_c_function
-      c_out buffer command
+      c_out buffer command enums_by_group
       input_parameters explicit_input_parameters implicit_input_parameters
       output_parameters all_explicit_outputs
       needs_byte_version needs_block_allocation =
@@ -384,7 +429,7 @@ let emit_c_function
     bprintf buffer "%s);\n" call_params;
     List.iter (fun param ->
         match param.caml_type with
-        | Array _ -> caml_array_of_c_array param buffer
+        | Array _ -> caml_array_of_c_array param command enums_by_group buffer
         | _ -> ()
       ) all_explicit_outputs;
     let return_value = match all_explicit_outputs with
@@ -456,7 +501,7 @@ let retype_params_with_shared_length command =
   in
   {command with params = List.map adjust command.params}
 
-let emit_functions caml_out c_out buffer commands_by_name =
+let emit_functions caml_out c_out buffer commands_by_name enums_by_group =
   Hashtbl.to_seq_values commands_by_name
   |> List.of_seq
   |> List.sort (fun c1 c2 -> String.compare c1.proto.pname c2.proto.pname)
@@ -502,7 +547,7 @@ let emit_functions caml_out c_out buffer commands_by_name =
          if Sys.file_exists override_c_filename then
            output_file c_out override_c_filename
          else
-           emit_c_function c_out buffer command
+           emit_c_function c_out buffer command enums_by_group
              input_parameters explicit_input_parameters implicit_input_parameters
              output_parameters all_explicit_outputs
              needs_byte_version needs_block_allocation
@@ -557,7 +602,8 @@ let () =
   in
   Buffer.reset buffer;
   emit_c_static_functions c_out;
-  emit_functions caml_out c_out buffer commands_by_name;
+  let enums_by_group = hash_enums_by_group enums_by_name in
+  emit_functions caml_out c_out buffer commands_by_name enums_by_group;
   close_out caml_out;
   close_out c_out;
   eprintf "Generated in %.6f seconds (CPU time).\n%!" (Sys.time ())
