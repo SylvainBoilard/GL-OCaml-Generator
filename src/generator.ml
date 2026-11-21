@@ -98,7 +98,7 @@ let caml_array_of_c_array param buffer =
     let element = caml_value_of_c_value (sprintf "%s_array[i]" pname) inner_caml_type in
     bprintf buffer "        Field(caml_%s_array, i) = %s;\n" pname element
 
-let prepare_c_output param explicit_input_parameters buffer =
+let prepare_c_output param input_parameters explicit_input_parameters buffer =
   let pname = replace_if_reserved_c_word param.pname in
   let gl_type =
     let open String in
@@ -108,10 +108,12 @@ let prepare_c_output param explicit_input_parameters buffer =
   in
   let get_length () = match param.length with
     | Some length ->
-       begin match List.find_opt (fun other_param -> other_param.pname = length) explicit_input_parameters with
+       begin match List.find_opt (fun other_param -> other_param.pname = length) input_parameters with
        | Some other_param ->
           let other_pname = replace_if_reserved_c_word other_param.pname in
-          c_value_of_caml_value other_pname other_param.caml_type
+          if List.memq other_param explicit_input_parameters
+          then c_value_of_caml_value other_pname other_param.caml_type
+          else other_pname (* implicit input: local variable declared in emit_c_function *)
        | None -> length
        end
     | None -> failwith "prepare_c_output: array or string has no length"
@@ -314,7 +316,8 @@ let emit_caml_function
 
 let emit_c_function
       c_out buffer command
-      explicit_input_parameters output_parameters all_explicit_outputs
+      input_parameters explicit_input_parameters implicit_input_parameters
+      output_parameters all_explicit_outputs
       needs_byte_version needs_block_allocation =
   let stub_params = match explicit_input_parameters with
     | [] -> "CAMLvoid"
@@ -334,7 +337,23 @@ let emit_c_function
         | Array _ -> c_array_of_caml_array param buffer
         | _ -> ()
       ) explicit_input_parameters;
-    List.iter (fun param -> prepare_c_output param explicit_input_parameters buffer) output_parameters;
+    (* Implicit inputs (used as the length of another input parameter) get a
+       local variable, so that their value is available both for allocating
+       output arrays beforehand and for the function call itself. *)
+    List.iter (fun param ->
+        let pname = replace_if_reserved_c_word param.pname in
+        match List.find_opt (fun other -> other.length = Some param.pname) input_parameters with
+        | Some other_param ->
+           let other_pname = replace_if_reserved_c_word other_param.pname in
+           let expr = match other_param.caml_type with
+             | Array _ | String -> sprintf "%s_length" other_pname
+             | Bigarray _ -> sprintf "caml_ba_byte_size(Caml_ba_array_val(%s))" other_pname
+             | _ -> failwith (sprintf "input parameter %s is length of dimension-less parameter %s" pname other_pname)
+           in
+           bprintf buffer "    const GLsizei %s = %s;\n" pname expr
+        | None -> ()
+      ) implicit_input_parameters;
+    List.iter (fun param -> prepare_c_output param input_parameters explicit_input_parameters buffer) output_parameters;
     if command.proto.caml_type = Unit
     then bprintf buffer "    %s(" command.proto.pname
     else bprintf buffer "    %s result = %s(" command.proto.gl_type command.proto.pname;
@@ -348,6 +367,7 @@ let emit_c_function
             | _ -> "&" ^ pname
           else
             match List.find_opt (fun other -> other.length = Some param.pname) command.params with
+            | Some _ when List.memq param implicit_input_parameters -> pname
             | Some other_param ->
                let other_pname = replace_if_reserved_c_word other_param.pname in
                begin match other_param.caml_type with
@@ -414,11 +434,37 @@ let emit_c_function
   );
   Buffer.output_buffer c_out buffer
 
+(* When several parameters (inputs and/or outputs) share the same length
+   parameter, use plain OCaml arrays for all of them instead of bigarrays, to
+   reflect the semantic relation between them (e.g. uniformIndices and params
+   in glGetActiveUniformsiv both have uniformCount elements). *)
+let retype_params_with_shared_length command =
+  let all_params = command.proto :: command.params in
+  let length_use_count l =
+    List.length (List.filter (fun p -> p.length = Some l) all_params)
+  in
+  let bigarray_to_array = function
+    | Bigarray ("int32", _) | Bigarray ("nativeint", _) | Bigarray ("char", _) -> Some (Array Int)
+    | Bigarray ("int64", _) -> Some (Array Int64)
+    | Bigarray ("float32", _) | Bigarray ("float64", _) -> Some (Array Float)
+    | _ -> None
+  in
+  let adjust param =
+    match param.length with
+    | Some l when length_use_count l >= 2 ->
+       (match bigarray_to_array param.caml_type with
+        | Some caml_type -> {param with caml_type}
+        | None -> param)
+    | _ -> param
+  in
+  {command with params = List.map adjust command.params}
+
 let emit_functions caml_out c_out buffer commands_by_name =
   Hashtbl.to_seq_values commands_by_name
   |> List.of_seq
   |> List.sort (fun c1 c2 -> String.compare c1.proto.pname c2.proto.pname)
   |> List.iter (fun command ->
+         let command = retype_params_with_shared_length command in
          let input_parameters, output_parameters =
            List.partition (fun param ->
                not (String.ends_with ~suffix:"*" param.gl_type) || (String.starts_with ~prefix:"const" param.gl_type)
@@ -428,6 +474,9 @@ let emit_functions caml_out c_out buffer commands_by_name =
            List.filter (fun param ->
                List.for_all (fun other -> other.length <> Some param.pname) input_parameters
              ) input_parameters
+         in
+         let implicit_input_parameters =
+           List.filter (fun param -> not (List.memq param explicit_input_parameters)) input_parameters
          in
          let explicit_output_parameters =
            List.filter (fun param ->
@@ -457,7 +506,8 @@ let emit_functions caml_out c_out buffer commands_by_name =
            output_file c_out override_c_filename
          else
            emit_c_function c_out buffer command
-             explicit_input_parameters output_parameters all_explicit_outputs
+             input_parameters explicit_input_parameters implicit_input_parameters
+             output_parameters all_explicit_outputs
              needs_byte_version needs_block_allocation
        )
 

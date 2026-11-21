@@ -1,0 +1,11 @@
+--- a/gl.xml
++++ b/gl.xml
+@@ -13147,7 +13147,7 @@
+             <param><ptype>GLsizei</ptype> <name>uniformCount</name></param>
+             <param len="uniformCount">const <ptype>GLuint</ptype> *<name>uniformIndices</name></param>
+             <param group="UniformPName"><ptype>GLenum</ptype> <name>pname</name></param>
+-            <param len="COMPSIZE(uniformCount,pname)"><ptype>GLint</ptype> *<name>params</name></param>
++            <param len="uniformCount"><ptype>GLint</ptype> *<name>params</name></param>
+             <glx type="single" opcode="216"/>
+         </command>
+         <command>
