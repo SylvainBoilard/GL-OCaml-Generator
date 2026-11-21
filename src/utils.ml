@@ -66,3 +66,14 @@ let output_file out_channel filename =
   let in_channel = open_in filename in
   output_string out_channel (really_input_string in_channel (in_channel_length in_channel));
   close_in_noerr in_channel
+
+(* Warning messages with a source position. The line number is printed in a
+   width-5 field so that the start of the message is always aligned on the
+   same column, e.g.:
+
+       gl.xml: 4541: Found duplicated enum ...
+       gl.xml:47772: ... *)
+let warn_at filename line fmt =
+  Printf.ksprintf (fun s -> Printf.eprintf "%s:%5d: %s\n%!" filename line s) fmt
+
+let warn filename (line, _col) fmt = warn_at filename line fmt

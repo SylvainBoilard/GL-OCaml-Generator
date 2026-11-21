@@ -147,10 +147,8 @@ let propagate_groups_by_value enums =
 let load filename =
   let opengl_registry_in = open_in filename in
   let xml_input = Xmlm.make_input ~strip:true (`Channel opengl_registry_in) in
-  let warn_at line fmt =
-    Printf.ksprintf (fun s -> Printf.eprintf "gl.xml:%d: %s\n%!" line s) fmt
-  in
-  let warn fmt = warn_at (fst (Xmlm.pos xml_input)) fmt in
+  let warn fmt = Utils.warn "gl.xml" (Xmlm.pos xml_input) fmt in
+  let warn_at line fmt = Utils.warn_at "gl.xml" line fmt in
   let enums_by_name = Hashtbl.create 4096 in
   let commands_by_name = Hashtbl.create 4096 in
   let features = ref [] in

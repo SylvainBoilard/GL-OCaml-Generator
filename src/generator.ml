@@ -138,11 +138,11 @@ let filter_by_feature enums_by_name commands_by_name features =
        List.iter (fun (name, _) -> Hashtbl.remove filtered_commands_by_name name) hd.removed_commands;
        List.iter Hashtbl.(fun (name, line) ->
          try replace filtered_enums_by_name name (find enums_by_name name)
-         with Not_found -> eprintf "gl.xml:%d: Required enum \"%s\" not found.\n%!" line name
+         with Not_found -> warn_at "gl.xml" line "Required enum \"%s\" not found." name
        ) hd.required_enums;
        List.iter Hashtbl.(fun (name, line) ->
          try replace filtered_commands_by_name name (find commands_by_name name)
-         with Not_found -> eprintf "gl.xml:%d: Required command \"%s\" not found.\n%!" line name
+         with Not_found -> warn_at "gl.xml" line "Required command \"%s\" not found." name
        ) hd.required_commands;
        loop tl
   in
@@ -164,7 +164,7 @@ let filter_by_feature enums_by_name commands_by_name features =
   Hashtbl.filter_map_inplace (fun _ enum ->
       let groups = List.filter (ListLabels.mem ~set:accessible_groups) enum.groups in
       if groups = [] then (
-        eprintf "gl.xml:%d: Enum \"%s\" required but does not belong to any useable group; removed.\n%!" enum.line enum.ename;
+        warn_at "gl.xml" enum.line "Enum \"%s\" required but does not belong to any useable group; removed." enum.ename;
         None
       ) else Some {enum with groups}
     ) filtered_enums_by_name;
@@ -264,8 +264,8 @@ let emit_caml_function
     | _ ->
        List.map (fun param ->
            if param.caml_type = Unimplemented then
-             eprintf "gl.xml:%d: No OCaml replacement for parameter \"%s\" of type \"%s\" in command %s.\n%!"
-               param.line param.pname param.gl_type command.proto.pname;
+             warn_at "gl.xml" param.line "No OCaml replacement for parameter \"%s\" of type \"%s\" in command %s."
+               param.pname param.gl_type command.proto.pname;
            if param.value_for <> None
            (* FIXME: if a function has several parameters with different "value_for"
               attributes, we need to emit 'a, then 'b, then 'c and so on. *)
@@ -283,8 +283,8 @@ let emit_caml_function
     | _ ->
        List.map (fun param ->
            if param.caml_type = Unimplemented then
-             eprintf "gl.xml:%d: No OCaml replacement for output \"%s\" of type \"%s\" in command %s.\n%!"
-               param.line param.pname param.gl_type command.proto.pname;
+             warn_at "gl.xml" param.line "No OCaml replacement for output \"%s\" of type \"%s\" in command %s."
+               param.pname param.gl_type command.proto.pname;
            string_of_caml_type param.caml_type
          ) all_explicit_outputs
        |> String.concat " * "
@@ -454,7 +454,7 @@ let () =
   let raw_enums_by_name, raw_commands_by_name, features =
     try Registry.load "gl.xml"
     with Xmlm.Error ((l, c), error) ->
-      eprintf "gl.xml:%d:%d: Xmlm.Error: %s\n%!" l c (Xmlm.error_message error);
+      warn_at "gl.xml" l "Xmlm.Error at character %d: %s" c (Xmlm.error_message error);
       exit 1
   in
   let api, version = GLES2_API, "3.2" in
