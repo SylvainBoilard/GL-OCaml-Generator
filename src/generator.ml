@@ -34,7 +34,7 @@ let rec string_of_caml_type = function
 let c_value_of_caml_value value = function
   | Unit -> failwith "c_value_of_caml_value: unit value"
   | Type "pointer" -> sprintf "Pointer_val(%s)" value
-  | Type "sync" -> sprintf "(GLsync)(intnat)Int_val(%s)" value
+  | Type "sync" -> sprintf "Cptr_val(GLsync, %s)" value
   | Int | Type _ -> sprintf "Int_val(%s)" value
   | Bool -> sprintf "Bool_val(%s)" value
   | Float -> sprintf "Double_val(%s)" value
@@ -49,7 +49,7 @@ let c_value_of_caml_value value = function
 let caml_value_of_c_value value = function
   | Unit -> failwith "caml_value_of_c_value: unit value"
   | Type "pointer" -> failwith "caml_value_of_c_value: pointer value"
-  | Type "sync" -> sprintf "Val_int((intnat)%s)" value
+  | Type "sync" -> sprintf "Val_cptr(%s)" value
   | Int | Type _ -> sprintf "Val_int(%s)" value
   | Bool -> sprintf "Val_bool(%s)" value
   | Float -> sprintf "caml_copy_double(%s)" value
@@ -205,6 +205,18 @@ let emit_c_header c_out api version =
 #endif
 
 #define Pointer_val(v) (Tag_val(v) == 0 ? Caml_ba_data_val(Field((v), 0)) : (void*)(intnat)Int_val(Field((v), 0)))
+
+/* Store a C pointer in an OCaml immediate value (the pointer is always
+   2-aligned, so the tag bit is free). Used for GLsync. */
+#include <assert.h>
+
+static value Val_cptr(void* p)
+{
+    assert(((uintptr_t)p & 1) == 0);
+    return (value)p | 1;
+}
+
+#define Cptr_val(t, v) ((t)((v) & ~1))
 
 " (string_of_api api) version (get_gl_include_file_name api version)
 
