@@ -95,7 +95,10 @@ let caml_array_of_c_array param buffer =
   if inner_caml_type = Float then
     bprintf buffer "        Store_double_array_field(caml_%s_array, i, %s_array[i]);\n" pname pname
   else
-    let element = caml_value_of_c_value (sprintf "%s_array[i]" pname) inner_caml_type in
+    (* A value_for output holds enum values (e.g. GL_UNIFORM_TYPE results),
+       convert them through the gl_enums translation table. *)
+    let element_type = if param.value_for <> None then Enum "#DUMMY#" else inner_caml_type in
+    let element = caml_value_of_c_value (sprintf "%s_array[i]" pname) element_type in
     bprintf buffer "        Field(caml_%s_array, i) = %s;\n" pname element
 
 let prepare_c_output param input_parameters explicit_input_parameters buffer =
@@ -284,7 +287,7 @@ let emit_caml_function
            (* FIXME: if a function has several parameters with different "value_for"
               attributes, we need to emit 'a, then 'b, then 'c and so on. *)
            then sprintf "%s:'a" (replace_if_reserved_caml_word param.pname)
-           else if List.exists (fun other -> other.value_for = Some param.pname) explicit_input_parameters
+           else if List.exists (fun other -> other.value_for = Some param.pname) command.params
            then (
              let[@warning "-8"] Enum gl_group = param.caml_type in
              sprintf "%s:([`%s] * 'a) enum" (replace_if_reserved_caml_word param.pname) gl_group
@@ -299,7 +302,11 @@ let emit_caml_function
            if param.caml_type = Unimplemented then
              warn_at "gl.xml" param.line "No OCaml replacement for output \"%s\" of type \"%s\" in command %s."
                param.pname param.gl_type command.proto.pname;
-           string_of_caml_type param.caml_type
+           if param.value_for <> None
+           then (match param.caml_type with
+                 | Array _ -> "'a array"
+                 | _ -> "'a")
+           else string_of_caml_type param.caml_type
          ) all_explicit_outputs
        |> String.concat " * "
   in
