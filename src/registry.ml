@@ -5,6 +5,7 @@ type enum = {
     value: string;
     groups: string list;
     value_group: string option;
+    value_type: string option;
     line: int;
   }
 
@@ -163,7 +164,8 @@ let load filename =
       let value = attrs_assoc "value" attrs in
       let groups = Option.fold ~none:[] ~some:(String.split_on_char ',') (attrs_assoc_opt "group" attrs) in
       let value_group = attrs_assoc_opt "value_group" attrs in
-      { ename; value; groups; value_group; line }
+      let value_type = attrs_assoc_opt "value_type" attrs in
+      { ename; value; groups; value_group; value_type; line }
     with
     | Not_found ->
        warn_at line "Found enum with missing name or value (%s)"

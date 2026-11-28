@@ -1,0 +1,58 @@
+--- a/gl.xml
++++ b/gl.xml
+@@ -1055,10 +1055,10 @@
+         <enum value="0x2702" name="GL_NEAREST_MIPMAP_LINEAR" group="TextureMinFilter"/>
+         <enum value="0x2703" name="GL_LINEAR_MIPMAP_LINEAR" group="TextureMinFilter"/>
+             <unused start="0x2704" end="0x27FF" comment="Unused for TextureMinFilter"/>
+-        <enum value="0x2800" name="GL_TEXTURE_MAG_FILTER" group="SamplerParameterI,GetTextureParameter,TextureParameterName"/>
+-        <enum value="0x2801" name="GL_TEXTURE_MIN_FILTER" group="SamplerParameterI,GetTextureParameter,TextureParameterName"/>
+-        <enum value="0x2802" name="GL_TEXTURE_WRAP_S" group="SamplerParameterI,GetTextureParameter,TextureParameterName"/>
+-        <enum value="0x2803" name="GL_TEXTURE_WRAP_T" group="SamplerParameterI,GetTextureParameter,TextureParameterName"/>
++        <enum value="0x2800" name="GL_TEXTURE_MAG_FILTER" group="SamplerParameterI,GetTextureParameter,TextureParameterName" value_group="TextureMagFilter"/>
++        <enum value="0x2801" name="GL_TEXTURE_MIN_FILTER" group="SamplerParameterI,GetTextureParameter,TextureParameterName" value_group="TextureMinFilter"/>
++        <enum value="0x2802" name="GL_TEXTURE_WRAP_S" group="SamplerParameterI,GetTextureParameter,TextureParameterName" value_group="TextureWrapMode"/>
++        <enum value="0x2803" name="GL_TEXTURE_WRAP_T" group="SamplerParameterI,GetTextureParameter,TextureParameterName" value_group="TextureWrapMode"/>
+             <unused start="0x2804" end="0x28FF" comment="Unused for TextureParameterName"/>
+         <enum value="0x2900" name="GL_CLAMP" group="TextureWrapMode"/>
+         <enum value="0x2901" name="GL_REPEAT" group="TextureWrapMode"/>
+@@ -4375,14 +4375,14 @@
+         <enum value="0x8A34" name="GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT" group="GetPName"/>
+         <enum value="0x8A35" name="GL_ACTIVE_UNIFORM_BLOCK_MAX_NAME_LENGTH" group="ProgramPropertyARB"/>
+         <enum value="0x8A36" name="GL_ACTIVE_UNIFORM_BLOCKS" group="ProgramPropertyARB"/>
+-        <enum value="0x8A37" name="GL_UNIFORM_TYPE" group="UniformPName"/>
+-        <enum value="0x8A38" name="GL_UNIFORM_SIZE" group="SubroutineParameterName,UniformPName"/>
+-        <enum value="0x8A39" name="GL_UNIFORM_NAME_LENGTH" group="SubroutineParameterName,UniformPName"/>
+-        <enum value="0x8A3A" name="GL_UNIFORM_BLOCK_INDEX" group="UniformPName"/>
+-        <enum value="0x8A3B" name="GL_UNIFORM_OFFSET" group="UniformPName"/>
+-        <enum value="0x8A3C" name="GL_UNIFORM_ARRAY_STRIDE" group="UniformPName"/>
+-        <enum value="0x8A3D" name="GL_UNIFORM_MATRIX_STRIDE" group="UniformPName"/>
+-        <enum value="0x8A3E" name="GL_UNIFORM_IS_ROW_MAJOR" group="UniformPName"/>
++        <enum value="0x8A37" name="GL_UNIFORM_TYPE" group="UniformPName" value_group="UniformType"/>
++        <enum value="0x8A38" name="GL_UNIFORM_SIZE" group="SubroutineParameterName,UniformPName" value_type="int"/>
++        <enum value="0x8A39" name="GL_UNIFORM_NAME_LENGTH" group="SubroutineParameterName,UniformPName" value_type="int"/>
++        <enum value="0x8A3A" name="GL_UNIFORM_BLOCK_INDEX" group="UniformPName" value_type="int"/>
++        <enum value="0x8A3B" name="GL_UNIFORM_OFFSET" group="UniformPName" value_type="int"/>
++        <enum value="0x8A3C" name="GL_UNIFORM_ARRAY_STRIDE" group="UniformPName" value_type="int"/>
++        <enum value="0x8A3D" name="GL_UNIFORM_MATRIX_STRIDE" group="UniformPName" value_type="int"/>
++        <enum value="0x8A3E" name="GL_UNIFORM_IS_ROW_MAJOR" group="UniformPName" value_type="bool"/>
+         <enum value="0x8A3F" name="GL_UNIFORM_BLOCK_BINDING" group="UniformBlockPName"/>
+         <enum value="0x8A40" name="GL_UNIFORM_BLOCK_DATA_SIZE" group="UniformBlockPName"/>
+         <enum value="0x8A41" name="GL_UNIFORM_BLOCK_NAME_LENGTH" group="UniformBlockPName"/>
+@@ -13147,7 +13147,7 @@
+             <param><ptype>GLsizei</ptype> <name>uniformCount</name></param>
+             <param len="uniformCount">const <ptype>GLuint</ptype> *<name>uniformIndices</name></param>
+             <param group="UniformPName"><ptype>GLenum</ptype> <name>pname</name></param>
+-            <param len="uniformCount"><ptype>GLint</ptype> *<name>params</name></param>
++            <param len="uniformCount" value_for="pname"><ptype>GLint</ptype> *<name>params</name></param>
+             <glx type="single" opcode="216"/>
+         </command>
+         <command>
+@@ -24562,7 +24562,7 @@
+             <proto>void <name>glTexParameteri</name></proto>
+             <param group="TextureTarget"><ptype>GLenum</ptype> <name>target</name></param>
+             <param group="TextureParameterName"><ptype>GLenum</ptype> <name>pname</name></param>
+-            <param kind="CheckedInt32"><ptype>GLint</ptype> <name>param</name></param>
++            <param kind="CheckedInt32" value_for="pname"><ptype>GLint</ptype> <name>param</name></param>
+             <glx type="render" opcode="107"/>
+         </command>
+         <command>
